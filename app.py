@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
 from datetime import datetime
+from flask_socketio import join_room
 
 
 app = Flask(__name__)
@@ -80,10 +81,12 @@ def handle_send_message(data):
 @socketio.on('connect')
 def handle_connect():
     if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        emit('user_connected', {'display_name': user.display_name}, broadcast=True)
-    else:
-        emit('unauthorized', {'error': 'User not logged in'}, broadcast=False)
+        user = db.session.get(User, session['user_id'])
+        if user:
+            join_room('main')
+            join_msg = f"{user.display_name} has joined the chat."
+            socketio.emit('chat message', {'msg': join_msg, 'sender': 'System'}, room='main')
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)

@@ -230,3 +230,9 @@ body {
     margin-left: 10px;
     margin-right: 10px;
 }
+
+
+#messages .system-message {
+    font-style: italic;
+    color: #bbb;
+}
