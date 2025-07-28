@@ -1,29 +1,33 @@
 
 {% extends "base.html" %}
 {% block content %}
-    <nav class="navbar">
-        <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon">
-        <h1>Chattrix</h1>
-        
-    </nav>
-
-<div class="chath2">
-<h2>Chat Room</h2>
-<a class="logout" href="{{ url_for('logout') }}">Logout</a>
+<div class="sidebar">
+    <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
+    <h1 class="sidebar-title">Chattrix</h1>
+    <div class="chath2">
+        <h2>Chat Room</h2>
+    </div>
+    <a class="logout" href="{{ url_for('logout') }}">Logout</a>
+    <button id="darkModeToggle">🌙 Dark Mode</button>
+    <ul id="onlineUsers"></ul>
 </div>
-
-<div id="messages"></div>
-<form id="messageForm">
-    <input type="text" id="msgInput" placeholder="Type your message..." required>
-    <input type="submit" value="Send">
-</form>
-<script>
+<div class="main-content">
+    <div id="messages"></div>
+    <form id="messageForm">
+        <input type="text" id="msgInput" placeholder="Type your message..." required>
+        <input type="submit" value="Send">
+    </form>
+</div>
+<!-- <div class="main-content">
+    <div id="messages"></div>
+    <form id="messageForm">
+        <input type="text" id="msgInput" placeholder="Type your message..." required>
+        <input type="submit" value="Send">
+    </form>
+</div> -->
+<!-- <script>
 const socket = io();
 const messageContainer = document.getElementById('messages');
-
-if (data.sender === 'System') {
-    messageDiv.classList.add('system-message');
-}
 
 
 function isUserAtBottom() {
@@ -34,13 +38,6 @@ function addMessage(data) {
     const div = document.createElement('div');
     div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
     messageContainer.appendChild(div);
-
-    socket.on('chat message', data => {
-    const messageDiv = document.createElement('div');
-    messageDiv.innerHTML = `<strong>${data.sender}:</strong> ${data.msg}`;
-    document.getElementById('messages').appendChild(messageDiv);
-    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-});
 }
 
 function loadMessages() {
@@ -71,6 +68,101 @@ document.getElementById('messageForm').addEventListener('submit', (e) => {
 
 
 loadMessages(); // load old messages on page load
+</script> -->
+
+<script>
+const socket = io();
+const messageContainer = document.getElementById('messages');
+
+// Emit user_joined when page loads
+socket.emit('user_joined');
+
+
+// function addMessage(data) {
+//     const div = document.createElement('div');
+//     if (data.system) {
+//         div.classList.add('system-message');
+//         div.innerHTML = `<em>${data.text}</em>`;
+//     } else {
+//         div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
+//     }
+//     messageContainer.appendChild(div);
+// }
+
+function addMessage(data) {
+    const div = document.createElement('div');
+    if (data.whisper) {
+        div.classList.add('whisper-message');
+        div.innerHTML = `<em>Whisper from <strong>${data.display_name}</strong> to <strong>${data.to}</strong>: ${data.text} <small>(${data.timestamp})</small></em>`;
+    } else if (data.system) {
+        div.classList.add('system-message');
+        div.innerHTML = `<em>${data.text}</em>`;
+    } else {
+        div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
+    }
+    messageContainer.appendChild(div);
+}
+
+
+function loadMessages() {
+    fetch('/messages')
+        .then(res => res.json())
+        .then(data => {
+            messageContainer.innerHTML = '';
+            data.forEach(msg => addMessage(msg));
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+        });
+}
+
+socket.on('new_message', (data) => {
+    addMessage(data);
+    messageContainer.scrollTop = messageContainer.scrollHeight;
+});
+
+// document.getElementById('messageForm').addEventListener('submit', (e) => {
+//     e.preventDefault();
+//     const input = document.getElementById('msgInput');
+//     socket.emit('send_message', { text: input.value });
+//     input.value = '';
+// });
+
+document.getElementById('messageForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = document.getElementById('msgInput');
+    const value = input.value.trim();
+
+    // Whisper command: /w username message
+    if (value.startsWith('/w ')) {
+        const parts = value.split(' ');
+        const toUsername = parts[1];
+        const message = parts.slice(2).join(' ');
+        socket.emit('whisper', { to: toUsername, text: message });
+    } else {
+        socket.emit('send_message', { text: value });
+    }
+    input.value = '';
+});
+
+socket.on('whisper', (data) => {
+    addMessage({ ...data, whisper: true });
+});
+
+socket.on('online_users', function(users) {
+    const userList = document.getElementById('onlineUsers');
+    userList.innerHTML = '';
+    users.forEach(function(name) {
+        const li = document.createElement('li');
+        li.textContent = name;
+        userList.appendChild(li);
+    });
+});
+
+
+loadMessages(); // <-- Make sure this is called on page load
+
+
+
 </script>
+
 
 {% endblock %}

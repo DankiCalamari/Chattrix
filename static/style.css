@@ -1,238 +1,307 @@
-    @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300&display=swap");
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: "Quicksand", sans-serif;
-    }
-     
-    /* #login body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: #111;
-      width: 100%;
-      overflow: hidden;
-    } */
-    .ring {
-      position: relative;
-      width: 500px;
-      height: 500px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-    .ring i {
-      position: absolute;
-      inset: 0;
-      border: 2px solid #fff;
-      transition: 0.5s;
-    }
-    .ring i:nth-child(1) {
-      border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%;
-      animation: animate 6s linear infinite;
-    }
-    .ring i:nth-child(2) {
-      border-radius: 41% 44% 56% 59%/38% 62% 63% 37%;
-      animation: animate 4s linear infinite;
-    }
-    .ring i:nth-child(3) {
-      border-radius: 41% 44% 56% 59%/38% 62% 63% 37%;
-      animation: animate2 10s linear infinite;
-    }
-    .ring:hover i {
-      border: 6px solid var(--clr);
-      filter: drop-shadow(0 0 20px var(--clr));
-    }
-    @keyframes animate {
-      0% {
-        transform: rotate(0deg);
-      }
-      100% {
-        transform: rotate(360deg);
-      }
-    }
-    @keyframes animate2 {
-      0% {
-        transform: rotate(360deg);
-      }
-      100% {
-        transform: rotate(0deg);
-      }
-    }
-    .login {
-      position: absolute;
-      width: 300px;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      gap: 20px;
-    }
-    .login h2 {
-      font-size: 2em;
-      color: #D8D4F2;
-    }
-    .login .inputBx {
-      position: relative;
-      width: 100%;
-    }
-    .login .inputBx input {
-      position: relative;
-      width: 100%;
-      padding: 12px 20px;
-      background: transparent;
-      border: 2px solid #D8D4F2;
-      border-radius: 40px;
-      font-size: 1.2em;
-      color: #D8D4F2;
-      box-shadow: none;
-      outline: none;
-    }
-    .login .inputBx input[type="submit"] {
-      width: 100%;
-      background: #0078ff;
-      background: linear-gradient(45deg, #ff357a, #fff172);
-      border: none;
-      cursor: pointer;
-    }
-    .login .inputBx input::placeholder {
-      color: rgba(255, 255, 255, 0.75);
-    }
-    .login .links {
-      position: relative;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 20px;
-    }
-    .login .links a {
-      color: #fff;
-      text-decoration: none;
-    }
+/* Import Google Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300&display=swap");
+
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Quicksand", sans-serif;
+}
+
+/* =========================
+   Animated Ring Loader
+   ========================= */
+/* .ring {
+  position: relative;
+  width: 500px;
+  height: 500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.ring i {
+  position: absolute;
+  inset: 0;
+  border: 2px solid #fff;
+  transition: 0.5s;
+}
+.ring i:nth-child(1) {
+  border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%;
+  animation: animate 6s linear infinite;
+}
+.ring i:nth-child(2) {
+  border-radius: 41% 44% 56% 59%/38% 62% 63% 37%;
+  animation: animate 4s linear infinite;
+}
+.ring i:nth-child(3) {
+  border-radius: 41% 44% 56% 59%/38% 62% 63% 37%;
+  animation: animate2 10s linear infinite;
+}
+.ring:hover i {
+  border: 6px solid var(--clr);
+  filter: drop-shadow(0 0 20px var(--clr));
+}
+@keyframes animate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes animate2 {
+  0% { transform: rotate(360deg); }
+  100% { transform: rotate(0deg); }
+} */
+
+/* =========================
+   Login Form Styles
+   ========================= */
+.login {
+  position: absolute;
+  width: 300px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+.login h2 {
+  font-size: 2em;
+  color: #21809c;
+}
+.login .inputBx {
+  position: relative;
+  width: 100%;
+}
+.login .inputBx input {
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  border: 2px solid #b3cbe3;
+  border-radius: 40px;
+  font-size: 1.2em;
+  color: #21809c;
+  outline: none;
+}
+.login .inputBx input[type="submit"] {
+  background: linear-gradient(45deg, #2a7fa5, #7bb7c6);
+  border: none;
+  cursor: pointer;
+  color: #fff;
+}
+.login .inputBx input::placeholder {
+  color: #7bb7c6;
+}
+.login .links {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+.login .links a {
+  color: #21809c;
+  text-decoration: none;
+}
+.login a {
+
+  text-decoration: none;
+}
+
+/* =========================
+   Main Layout
+   ========================= */
 body {
-    font-family: Arial, sans-serif;
-    margin: 40px;
-    background: #9A7197;
+  display: flex;
+  flex-direction: row;
+  background: #f6f8fa;
+  min-height: 100vh;
+  height: 100vh;
 }
 
-/* form input {
-    margin: 5px 0;
-    
-} */
-
-/* h2 {
-    color: #604D53;
-    text-align: center;
-} */
-#messages {
-    background: #886176;
-    padding: 10px;
-    margin-bottom: 10px;
-    border: 1px solid #ccc;
-    height: 300px;
-    overflow-y: scroll;
-    color: #D8D4F2;
-    
-
+/* =========================
+   Sidebar Styles
+   ========================= */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 40px 20px 0 40px;
+  background: #e3f0fa;
+  min-width: 260px;
+  width: 300px;
+  height: 100vh;
+  border-right: 2px solid #b3cbe3;
+  gap: 20px;
 }
-
-#messages div {
-      font-family: "Space Mono", monospace;
-  font-weight: 400;
-  font-style: normal;
+.sidebar-logo {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 10px;
+}
+.sidebar-title {
+  font-size: 2em;
+  color: #2a7fa5;
+  margin-bottom: 10px;
+}
+.chath2 h2 {
+  font-family: "Space Mono", monospace;
+  font-weight: 700;
+  color: #2a7fa5;
+  text-align: left;
+  margin-bottom: 20px;
 }
 .logout {
-  background-color: #7B435B; 
+  background-color: #2a7fa5; 
   border: none;
-  color: rgb(255, 255, 255);
-  padding: 15px 32px;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 16px;
-  float: right;
-  border-radius: 8px
-
+  color: #fff;
+  padding: 15px 0;
+  font-size: 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
+  margin-bottom: 10px;
+  width: 100%;
+  transition: background 0.2s;
 }
 .logout:hover {
-  background-color: #735d5c; /* Green */
-}
-/* #msgInput {
-    width: 1000px;
-    max-height: 400px;
-} */
-/*  */
-
-.navbar img {
-    width: 50px;
-    height: 50px;
-}
-.navbar h1{
-    float: left;
-    padding-right: 20px;
-    font-family: "Special Gothic Expanded One", sans-serif;
-    font-weight: 400;
-        font-style: normal;
-    color: #D8D4F2;
+  background-color: #21809c;
 }
 
-.chath2 h2 {
-    font-family: "Space Mono", monospace;
-    font-weight: 700;
-    font-style: normal;
-    color: #D8D4F2;
-    text-align: center;
-    margin-bottom: 20px;
+/* =========================
+   Online Users List
+   ========================= */
+#onlineUsers {
+  width: 100%;
+  background: #f0f6fb;
+  border-radius: 8px;
+  padding: 10px 15px;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
+  color: #21809c;
+  font-family: "Space Mono", monospace;
+  font-size: 16px;
+  list-style: none;
+  border: 1px solid #b3cbe3;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
 }
-.chath2 .logout {
-    float: right;
-    background-color: #7B435B; 
-    border: none;
-    color: rgb(255, 255, 255);
-    padding: 15px 32px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-    border-radius: 8px;
+#onlineUsers li {
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #e0eaf3;
+  text-align: left;
+}
+#onlineUsers li:last-child {
+  border-bottom: none;
 }
 
-#messageForm input[type="text"] {
-    /* display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px; */
-    width: 1000px;
-    height: auto;
-    border-radius: 5px;
-    border-spacing: 10px;
-    color: #D8D4F2;
-    background-color: #886176;
-    font-family: "Space Mono", monospace;
+/* =========================
+   Main Chat Area
+   ========================= */
+.main-content {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================
+   Chat Messages
+   ========================= */
+#messages {
+  background: #f4f6f8;
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #b3cbe3;
+  height: 300px;
+  overflow-y: scroll;
+  color: #21809c;
+  border-radius: 8px;
+}
+#messages div {
+  font-family: "Space Mono", monospace;
   font-weight: 400;
-  font-style: normal;
+}
+.system-message {
+  color: #7bb7c6;
+  font-style: italic;
+  text-align: center;
+  margin: 10px 0;
+}
+.whisper-message {
+  color: #21809c;
+  font-style: italic;
+  background: #e3f0fa;
+  border-radius: 8px;
+  padding: 5px 10px;
+  margin: 5px 0;
 }
 
+/* =========================
+   Message Form
+   ========================= */
+#messageForm input[type="text"] {
+  width: 1000px;
+  border-radius: 5px;
+  color: #21809c;
+  background-color: #f0f6fb;
+  font-family: "Space Mono", monospace;
+  font-weight: 400;
+  border: 1px solid #b3cbe3;
+  padding: 10px;
+}
 #messageForm input[type="submit"] {
-    background-color: #886176;
-    color: #D8D4F2;
-    border: none;
-    border-radius: 5px;
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    margin-left: 10px;
-    margin-right: 10px;
+  background-color: #2a7fa5;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 10px;
+  transition: background 0.2s;
+}
+#messageForm input[type="submit"]:hover {
+  background-color: #21809c;
 }
 
-
-#messages .system-message {
-    font-style: italic;
-    color: #bbb;
+/* =========================
+   Dark Mode Styles
+   ========================= */
+body.dark-mode {
+  background: #181a20;
+}
+body.dark-mode .sidebar {
+  background: #23263a;
+  border-right: 2px solid #353a4a;
+}
+body.dark-mode .sidebar-title,
+body.dark-mode .chath2 h2 {
+  color: #7bb7c6;
+}
+body.dark-mode .logout {
+  background-color: #353a4a;
+  color: #f0f6fb;
+}
+body.dark-mode .logout:hover {
+  background-color: #21809c;
+}
+body.dark-mode #onlineUsers {
+  background: #23263a;
+  color: #7bb7c6;
+  border: 1px solid #353a4a;
+}
+body.dark-mode #messages {
+  background: #23263a;
+  color: #7bb7c6;
+  border: 1px solid #353a4a;
+}
+body.dark-mode #messageForm input[type="text"] {
+  background-color: #23263a;
+  color: #7bb7c6;
+  border: 1px solid #353a4a;
+}
+body.dark-mode #messageForm input[type="submit"] {
+  background-color: #353a4a;
+  color: #f0f6fb;
 }

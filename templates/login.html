@@ -1,61 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
 
-<style>
-.navbar {
-    display: flex;
-    align-items: center;
-    padding: 10px;
-}
-.navbar img {
-    width: 50px;
-    height: 50px;
-    margin-right: 10px;
-}
-.navbar h1 {
-    color: white;
-    margin-right: 10px;
-}
-
-
-body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      background: #9A7197;
-      width: 100%;
-      overflow: hidden;
-    }
-</style>
-    <nav class="navbar">
-        <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon">
-        <h1>Chattrix</h1>
-        
-    </nav>
-
-<div class="ring">
-  <i style="--clr:#ffffff;"></i>
-  <i style="--clr:#ffffff;"></i>
-  <i style="--clr:#ffffff;"></i>
-  <div class="login">
-    <h2>Login</h2>
-    <form method="post">
-      <div class="inputBx">
-        <input type="text" placeholder="Username" name="username" required>
-      </div>
-      <div class="inputBx">
-        <input type="password" placeholder="Password" name="password" required>
-      </div>
-      <div class="inputBx">
-        <input type="submit" value="Sign in">
-      </div>
-      <div class="links">
-        <a href="#">Forget Password</a>
-        <a href="{{ url_for('register') }}">Register</a>
-      </div>
-    </form>
-  </div>
+<div class="sidebar">
+    <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
+    <h1 class="sidebar-title">Chattrix</h1>
+</div>
+<div class="main-content">
+    <div class="login">
+        <h2>Login</h2>
+        <form method="post">
+            <div class="inputBx">
+                <input type="text" placeholder="Username" name="username" required>
+            </div>
+            <div class="inputBx">
+                <input type="password" placeholder="Password" name="password" required>
+            </div>
+            <div class="inputBx">
+                <input type="submit" value="Sign in">
+            </div>
+            <div class="links">
+                <a href="#">Forget Password</a>
+                <a href="{{ url_for('register') }}">Register</a>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}
 

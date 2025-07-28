@@ -1,21 +1,30 @@
-
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>SocketIO Chat</title>
+    <title>Chattrix</title>
+    <!-- Main stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Socket.IO client library -->
     <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Special+Gothic+Expanded+One&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@700&display=swap" rel="stylesheet">
-
-
-
+    <!-- Google Fonts: Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Google Fonts: Special Gothic Expanded One -->
+    <link href="https://fonts.googleapis.com/css2?family=Special+Gothic+Expanded+One&display=swap" rel="stylesheet">
+    <!-- Google Fonts: Space Mono (regular and bold) -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Main content block for child templates -->
     {% block content %}{% endblock %}
+    <!-- Dark mode toggle script -->
+    <script>
+      // Toggle dark mode and update button text
+      document.getElementById('darkModeToggle').onclick = function() {
+        document.body.classList.toggle('dark-mode');
+        this.textContent = document.body.classList.contains('dark-mode') ? '☀️ Light Mode' : '🌙 Dark Mode';
+      };
+    </script>
 </body>
 </html>
