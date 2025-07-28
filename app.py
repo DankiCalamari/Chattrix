@@ -75,5 +75,15 @@ def handle_send_message(data):
             'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
         }, broadcast=True)
 
+
+
+@socketio.on('connect')
+def handle_connect():
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        emit('user_connected', {'display_name': user.display_name}, broadcast=True)
+    else:
+        emit('unauthorized', {'error': 'User not logged in'}, broadcast=False)
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
