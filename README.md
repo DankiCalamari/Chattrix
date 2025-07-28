@@ -1,13 +1,14 @@
 # Chattrix - Flask SocketIO Chat App
 
-Chattrix is a simple real-time chat application built with Flask, Flask-SocketIO, and SQLite. It features user registration, login, and a live chat room with a modern UI.
+Chattrix is a real-time chat application built with Flask, Flask-SocketIO, and SQLite. It supports user registration, login, and a live chat room with a responsive UI.
 
 ## Features
 
-- User registration and login
-- Real-time messaging using WebSockets (Socket.IO)
-- SQLite database for storing users and messages
-- Responsive and modern UI with custom CSS
+- User registration and authentication
+- Real-time messaging via WebSockets (Socket.IO)
+- SQLite database for users and messages
+- Responsive UI with custom CSS
+- Persistent chat history
 
 ## Project Structure
 
@@ -37,18 +38,18 @@ templates/
     ```
 
 3. **Open your browser:**  
-   Visit [http://localhost:5000](http://localhost:5000)
+   Go to [http://localhost:5000](http://localhost:5000)
 
 ## Usage
 
 - Register a new account.
 - Log in with your credentials.
-- Start chatting in the chat room!
+- Join the chat room and start messaging!
 
 ## File Overview
 
-- [`app.py`](app.py): Main Flask application with routes, models, and SocketIO logic.
-- [`static/style.css`](static/style.css): Custom styles for the UI.
+- [`app.py`](app.py): Main Flask app, database models, routes, and SocketIO events.
+- [`static/style.css`](static/style.css): Custom styles for the chat UI.
 - [`templates/base.html`](templates/base.html): Base HTML template.
 - [`templates/login.html`](templates/login.html): Login page.
 - [`templates/register.html`](templates/register.html): Registration page.
@@ -56,4 +57,4 @@ templates/
 
 ## License
 
-MIT License
+This project is licensed under the MIT License.
