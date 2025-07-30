@@ -3,13 +3,17 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import send, emit, join_room, leave_room, SocketIO
 from datetime import datetime
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
-
+from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
+from werkzeug.security import generate_password_hash, check_password_hash   # For password hashing
 # Flask app setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
 db = SQLAlchemy(app)
 socketio = SocketIO(app, manage_session=True)
+
+
 
 # Flask-Login setup
 login_manager = LoginManager(app)
@@ -63,6 +67,21 @@ class Message(db.Model):
 with app.app_context():
     db.create_all()
 
+
+#Flask-Admin setup
+admin = Admin(app, name='Chattrix Admin', template_mode='bootstrap4')
+class AdminModelView(ModelView):
+    def is_accessible(self):
+        return current_user.is_authenticated and current_user.is_admin
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('login'))
+
+
+admin.add_view(ModelView(User, db.session))
+admin.add_view(ModelView(Message, db.session))
+
+
+
 # Handle whisper (private message)
 @socketio.on('whisper')
 def handle_whisper(data):
@@ -106,7 +125,12 @@ def register():
         display_name = request.form['display_name']
         username = request.form['username']
         password = request.form['password']
-        user = User(display_name=display_name, username=username, password=password)
+        hashedPassword = generate_password_hash(password, method='pbkdf2:sha256')
+        # Check if username already exists
+        if User.query.filter_by(username=username).first():
+            return "Username already exists", 400
+        # Create new user
+        user = User(display_name=display_name, username=username, password=hashedPassword)
         db.session.add(user)
         db.session.commit()
         return redirect(url_for('login'))
@@ -118,8 +142,8 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        user = User.query.filter_by(username=username, password=password).first()
-        if user:
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password, password):
             login_user(user)
             return redirect(url_for('index'))
     return render_template('login.html')
@@ -176,7 +200,7 @@ def handle_user_joined():
         emit('new_message', {
             'system': True,
             'text': f"{current_user.display_name} has joined the chat.",
-            'timestamp': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }, broadcast=True)
 
 # Run the app

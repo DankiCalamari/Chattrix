@@ -1,59 +1,90 @@
-# Chattrix - Flask SocketIO Chat App
+# Chattrix Messaging App
 
-Chattrix is a simple real-time chat application built with Flask, Flask-SocketIO, and SQLite. It features user registration, login, and a live chat room with a modern UI.
+A real-time messaging app built with Flask, Flask-SocketIO, Flask-Login, Flask-Admin, and SQLAlchemy.  
+Features include public chat, private whispers, online user tracking, password encryption, admin panel, and dark mode.
+
+---
 
 ## Features
 
-- User registration and login
-- Real-time messaging using WebSockets (Socket.IO)
-- SQLite database for storing users and messages
-- Responsive and modern UI with custom CSS
+- **User Registration & Login** (with password hashing)
+- **Real-time Chat** (Socket.IO)
+- **Private Messages (Whispers)**
+- **Online Users List**
+- **Admin Panel** (`/admin`) for managing users and messages
+- **Dark Mode** (persistent via browser storage)
+- **Password Reset (with Resend API, optional)**
+- **Responsive Sidebar Layout**
 
-## Project Structure
+---
+
+## Getting Started
+
+### 1. Install Dependencies
+
+```sh
+pip install flask flask-socketio flask-login flask-admin flask_sqlalchemy werkzeug requests
+```
+
+### 2. Run the App
+
+```sh
+python app.py
+```
+
+Visit [http://localhost:5000](http://localhost:5000) in your browser.
+
+---
+
+## Configuration
+
+- **Database:** SQLite (`db.sqlite3` by default)
+- **Admin Panel:** Visit `/admin` (requires `is_admin` property on User model)
+- **Password Hashing:** Uses `pbkdf2:sha256` via Werkzeug
+- **Email/Password Reset:** Integrate [Resend](https://resend.com/docs/introduction) by setting your API key and using the provided helper function.
+
+---
+
+## Folder Structure
 
 ```
-app.py
-instance/
-    db.sqlite3
-static/
-    style.css
-templates/
-    base.html
-    chat.html
-    login.html
-    register.html
+messaging_app_socketio/
+├── app.py
+├── templates/
+│   ├── base.html
+│   ├── chat.html
+│   ├── login.html
+│   ├── register.html
+│   └── ... (other templates)
+├── static/
+│   └── style.css
+└── db.sqlite3
 ```
 
-## Setup & Run
+---
 
-1. **Install dependencies:**
-    ```sh
-    pip install flask flask_sqlalchemy flask_socketio
-    ```
+## Customization
 
-2. **Run the app:**
-    ```sh
-    python app.py
-    ```
+- **Dark Mode:** Toggle with the button in the sidebar. Remembers your choice.
+- **Admin Access:** Restrict admin panel by customizing `AdminModelView.is_accessible()`.
+- **Email Sending:** See [Resend docs](https://resend.com/docs/introduction) for setup.
 
-3. **Open your browser:**  
-   Visit [http://localhost:5000](http://localhost:5000)
+---
 
-## Usage
+## Security Notes
 
-- Register a new account.
-- Log in with your credentials.
-- Start chatting in the chat room!
+- Passwords are **hashed** before storage.
+- Always use HTTPS and environment variables for secrets in production.
+- For password reset, use secure tokens and email verification.
 
-## File Overview
-
-- [`app.py`](app.py): Main Flask application with routes, models, and SocketIO logic.
-- [`static/style.css`](static/style.css): Custom styles for the UI.
-- [`templates/base.html`](templates/base.html): Base HTML template.
-- [`templates/login.html`](templates/login.html): Login page.
-- [`templates/register.html`](templates/register.html): Registration page.
-- [`templates/chat.html`](templates/chat.html): Chat room page.
+---
 
 ## License
 
-MIT License
+MIT
+
+---
+
+## Credits
+
+Built with [Flask](https://flask.palletsprojects.com/), [Flask-SocketIO](https://flask-socketio.readthedocs.io/), [Flask-Admin](https://flask-admin.readthedocs.io/), [Resend](https://resend.com/),

@@ -305,3 +305,15 @@ body.dark-mode #messageForm input[type="submit"] {
   background-color: #353a4a;
   color: #f0f6fb;
 }
+#dark-mode-toggle {
+  background: #353a4a;
+  color: #f0f6fb;
+  border: 1px solid #7bb7c6;
+  border-radius: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#dark-mode-toggle:hover {
+  background: #21809c;
+} 

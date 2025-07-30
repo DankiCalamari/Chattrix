@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block content %}
 <div class="sidebar">
@@ -18,77 +17,19 @@
         <input type="submit" value="Send">
     </form>
 </div>
-<!-- <div class="main-content">
-    <div id="messages"></div>
-    <form id="messageForm">
-        <input type="text" id="msgInput" placeholder="Type your message..." required>
-        <input type="submit" value="Send">
-    </form>
-</div> -->
-<!-- <script>
-const socket = io();
-const messageContainer = document.getElementById('messages');
-
-
-function isUserAtBottom() {
-    return messageContainer.scrollHeight - messageContainer.scrollTop <= messageContainer.clientHeight + 10;
-}
-
-function addMessage(data) {
-    const div = document.createElement('div');
-    div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
-    messageContainer.appendChild(div);
-}
-
-function loadMessages() {
-    fetch('/messages')
-        .then(res => res.json())
-        .then(data => {
-            messageContainer.innerHTML = ''; // clear container
-            data.forEach(msg => addMessage(msg));
-            messageContainer.scrollTop = messageContainer.scrollHeight;
-        });
-}
-
-socket.on('new_message', (data) => {
-    const atBottom = isUserAtBottom();
-    addMessage(data);
-    if (atBottom) {
-        messageContainer.scrollTop = messageContainer.scrollHeight;
-    }
-});
-
-document.getElementById('messageForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const input = document.getElementById('msgInput');
-    socket.emit('send_message', { text: input.value });
-    input.value = '';
-});
-
-
-
-loadMessages(); // load old messages on page load
-</script> -->
 
 <script>
+// Initialize socket.io
 const socket = io();
 const messageContainer = document.getElementById('messages');
 
-// Emit user_joined when page loads
+// Notify server when user joins
 socket.emit('user_joined');
 
-
-// function addMessage(data) {
-//     const div = document.createElement('div');
-//     if (data.system) {
-//         div.classList.add('system-message');
-//         div.innerHTML = `<em>${data.text}</em>`;
-//     } else {
-//         div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
-//     }
-//     messageContainer.appendChild(div);
-// }
-
+/**
+ * Adds a message to the message container.
+ * Handles normal, system, and whisper messages.
+ */
 function addMessage(data) {
     const div = document.createElement('div');
     if (data.whisper) {
@@ -103,29 +44,33 @@ function addMessage(data) {
     messageContainer.appendChild(div);
 }
 
-
+/**
+ * Loads previous messages from the server and displays them.
+ */
 function loadMessages() {
     fetch('/messages')
         .then(res => res.json())
         .then(data => {
             messageContainer.innerHTML = '';
             data.forEach(msg => addMessage(msg));
+            // Scroll to bottom after loading messages
             messageContainer.scrollTop = messageContainer.scrollHeight;
         });
 }
 
+/**
+ * Handles new incoming messages from the server.
+ */
 socket.on('new_message', (data) => {
     addMessage(data);
+    // Always scroll to bottom when a new message arrives
     messageContainer.scrollTop = messageContainer.scrollHeight;
 });
 
-// document.getElementById('messageForm').addEventListener('submit', (e) => {
-//     e.preventDefault();
-//     const input = document.getElementById('msgInput');
-//     socket.emit('send_message', { text: input.value });
-//     input.value = '';
-// });
-
+/**
+ * Handles form submission for sending messages.
+ * Supports whisper command: /w username message
+ */
 document.getElementById('messageForm').addEventListener('submit', (e) => {
     e.preventDefault();
     const input = document.getElementById('msgInput');
@@ -143,10 +88,16 @@ document.getElementById('messageForm').addEventListener('submit', (e) => {
     input.value = '';
 });
 
+/**
+ * Handles incoming whisper messages.
+ */
 socket.on('whisper', (data) => {
     addMessage({ ...data, whisper: true });
 });
 
+/**
+ * Updates the online users list in the sidebar.
+ */
 socket.on('online_users', function(users) {
     const userList = document.getElementById('onlineUsers');
     userList.innerHTML = '';
@@ -157,12 +108,8 @@ socket.on('online_users', function(users) {
     });
 });
 
-
-loadMessages(); // <-- Make sure this is called on page load
-
-
+// Load old messages on page load
+loadMessages();
 
 </script>
-
-
 {% endblock %}
