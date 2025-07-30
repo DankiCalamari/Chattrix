@@ -16,27 +16,27 @@ Features include public chat, private whispers, online user tracking, password e
 - **Responsive Sidebar Layout**
 
 ---
-##To Do
+## To Do
 
--[] User profile pages (with avatar and bio)
--[] Message search/filter functionality
--[] File/image sharing in chat
--[] Emoji/sticker support
--[] Message editing and deletion
--[] Typing indicators ("user is typing...")
--[] Read receipts for messages
--[] Group chat rooms/channels
--[] Push notifications (browser or email)
--[] Rate limiting or spam protection
--[] User blocking/muting
--[] Admin/moderator controls (ban/kick users)
--[] Chat message history export (download as text)
--[] Two-factor/Social Login authentication for login
--[] Customizable themes (user-selectable color schemes)
--[] Mobile-friendly responsive design
--[] Invite links for private rooms
--[] Activity logs for admin review
--[] Accessibility improvements (screen reader support, contrast options)
+- [ ] User profile pages (with avatar and bio)
+- [ ] Message search/filter functionality
+- [ ] File/image sharing in chat
+- [ ] Emoji/sticker support
+- [ ] Message editing and deletion
+- [ ] Typing indicators ("user is typing...")
+- [ ] Read receipts for messages
+- [ ] Group chat rooms/channels
+- [ ] Push notifications (browser or email)
+- [ ] Rate limiting or spam protection
+- [ ] User blocking/muting
+- [ ] Admin/moderator controls (ban/kick users)
+- [ ] Chat message history export (download as text)
+- [ ] Two-factor/Social Login authentication for login
+- [ ] Customizable themes (user-selectable color schemes)
+- [ ] Mobile-friendly responsive design
+- [ ] Invite links for private rooms
+- [ ] Activity logs for admin review
+- [ ] Accessibility improvements (screen reader support, contrast options)
 
 ## Getting Started
 
