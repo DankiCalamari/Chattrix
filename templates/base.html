@@ -20,11 +20,31 @@
     {% block content %}{% endblock %}
     <!-- Dark mode toggle script -->
     <script>
-      // Toggle dark mode and update button text
-      document.getElementById('darkModeToggle').onclick = function() {
-        document.body.classList.toggle('dark-mode');
-        this.textContent = document.body.classList.contains('dark-mode') ? '☀️ Light Mode' : '🌙 Dark Mode';
-      };
+window.addEventListener('DOMContentLoaded', function(){
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    function setDarkMode(enabled) {
+        if (enabled) {
+            document.body.classList.add('dark-mode');
+            darkModeToggle.textContent = '☀️ Light Mode';
+        } else {
+            document.body.classList.remove('dark-mode');
+            darkModeToggle.textContent = '🌙 Dark Mode';
+        }
+    }
+     // Apply saved preference
+    const darkPref = localStorage.getItem('darkMode') === '1';
+    setDarkMode(darkPref);
+    darkModeToggle.onclick = function() {
+        const newPref = !darkPref;
+        setDarkMode(newPref);
+        localStorage.setItem('darkMode', newPref ? '1' : '0');
+    };
+
+});
+
+
+
+
     </script>
 </body>
 </html>

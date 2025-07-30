@@ -6,6 +6,8 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, curren
 from flask_admin import Admin
 from flask_admin.contrib.sqla import ModelView
 from werkzeug.security import generate_password_hash, check_password_hash   # For password hashing
+
+
 # Flask app setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key'
@@ -25,6 +27,7 @@ class User(db.Model, UserMixin):
     display_name = db.Column(db.String(50), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(80), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False) 
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -72,13 +75,13 @@ with app.app_context():
 admin = Admin(app, name='Chattrix Admin', template_mode='bootstrap4')
 class AdminModelView(ModelView):
     def is_accessible(self):
-        return current_user.is_authenticated and current_user.is_admin
+        return current_user.is_authenticated and getattr(current_user, 'is_admin', False)
     def inaccessible_callback(self, name, **kwargs):
         return redirect(url_for('login'))
 
 
-admin.add_view(ModelView(User, db.session))
-admin.add_view(ModelView(Message, db.session))
+admin.add_view(AdminModelView(User, db.session))
+admin.add_view(AdminModelView(Message, db.session))
 
 
 
