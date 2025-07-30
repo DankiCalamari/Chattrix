@@ -6,6 +6,7 @@
     <div class="chath2">
         <h2>Chat Room</h2>
     </div>
+    <a class="profile-link" href="{{ url_for('profile') }}">Profile Settings</a>
     <a class="logout" href="{{ url_for('logout') }}">Logout</a>
     <button id="darkModeToggle">🌙 Dark Mode</button>
     <ul id="onlineUsers"></ul>
@@ -15,11 +16,12 @@
     <form id="messageForm">
         <input type="text" id="msgInput" placeholder="Type your message..." required>
         <input type="submit" value="Send">
-
     </form>
-            <button id="togglePinnedBtn">Show Pinned Messages</button>
+    <button id="togglePinnedBtn">Show Pinned Messages</button>
     <div id="pinnedMessages" style="display:none; margin-top:15px;"></div>
 </div>
+
+
 
 <script>
 // Initialize socket.io
@@ -94,15 +96,17 @@ socket.on('update_pinned', function() {
  */
 function addMessage(data) {
     const div = document.createElement('div');
+    let profilePic = data.profile_pic ? data.profile_pic : 'default.png';
+    let imgTag = `<img class="chat-profile-pic" src="/static/profile_pics/${profilePic}" alt="Profile" style="width:28px;height:28px;border-radius:50%;margin-right:8px;vertical-align:middle;">`;
+
     if (data.whisper) {
         div.classList.add('whisper-message');
-        div.innerHTML = `<em>Whisper from <strong>${data.display_name}</strong> to <strong>${data.to}</strong>: ${data.text} <small>(${data.timestamp})</small></em>`;
+        div.innerHTML = `${imgTag}<em>Whisper from <strong>${data.display_name}</strong> to <strong>${data.to}</strong>: ${data.text} <small>(${data.timestamp})</small></em>`;
     } else if (data.system) {
         div.classList.add('system-message');
         div.innerHTML = `<em>${data.text}</em>`;
     } else {
-        div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
-        // Only show pin button for normal messages and only for admins
+        div.innerHTML = `${imgTag}<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
         if (data.id && typeof isAdmin !== "undefined" && isAdmin) {
             const pinBtn = document.createElement('button');
             pinBtn.textContent = 'Pin';
@@ -113,8 +117,8 @@ function addMessage(data) {
         }
     }
     messageContainer.appendChild(div);
+    messageContainer.scrollTop = messageContainer.scrollHeight;
 }
-  messageContainer.scrollTop = messageContainer.scrollHeight;
 
 
   
@@ -163,6 +167,8 @@ document.getElementById('messageForm').addEventListener('submit', (e) => {
     input.value = '';
 });
 
+
+
 /**
  * Handles incoming whisper messages.
  */
@@ -176,12 +182,15 @@ socket.on('whisper', (data) => {
 socket.on('online_users', function(users) {
     const userList = document.getElementById('onlineUsers');
     userList.innerHTML = '';
-    users.forEach(function(name) {
+    users.forEach(function(user) {
+        let profilePic = user.profile_pic ? user.profile_pic : 'default.png';
+        let imgTag = `<img src="/static/profile_pics/${profilePic}" alt="Profile" style="width:22px;height:22px;border-radius:50%;margin-right:6px;vertical-align:middle;">`;
         const li = document.createElement('li');
-        li.textContent = name;
+        li.innerHTML = `${imgTag}${user.display_name}`;
         userList.appendChild(li);
     });
 });
+
 
 // Load old messages on page load
 loadMessages();

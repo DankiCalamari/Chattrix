@@ -1,42 +1,46 @@
 # Chattrix Messaging App
 
 A real-time messaging app built with Flask, Flask-SocketIO, Flask-Login, Flask-Admin, and SQLAlchemy.  
-Features include public chat, private whispers, online user tracking, password encryption, admin panel, and dark mode.
+Current features include public chat, private whispers, online user tracking, password encryption, admin panel, and dark mode.
 
 ---
 
 ## Features
 
-- **User Registration & Login** (with password hashing)
+- **User Registration & Login** (secure password hashing)
 - **Real-time Chat** (Socket.IO)
 - **Private Messages (Whispers)**
 - **Online Users List**
+- **Pinned Messages**
 - **Admin Panel** (`/admin`) for managing users and messages
-- **Dark Mode** (Persistent)
+- **Dark Mode** (persistent across sessions)
 - **Responsive Sidebar Layout**
+- **User profile pages (avatar, bio)**
 
 ---
+
 ## To Do
 
-- [ ] User profile pages (with avatar and bio)
-- [ ] Message search/filter functionality
-- [ ] File/image sharing in chat
+- [x] Pinned Messages
+- [x] User profile pages (avatar, bio)
+- [ ] Message search/filter
+- [ ] File/image sharing
 - [ ] Emoji/sticker support
-- [ ] Message editing and deletion
-- [ ] Typing indicators ("user is typing...")
-- [ ] Read receipts for messages
+- [ ] Message editing/deletion
+- [ ] Typing indicators
+- [ ] Read receipts
 - [ ] Group chat rooms/channels
-- [ ] Push notifications (browser or email)
-- [ ] Rate limiting or spam protection
+- [ ] Push notifications
+- [ ] Rate limiting/spam protection
 - [ ] User blocking/muting
-- [ ] Admin/moderator controls (ban/kick users)
-- [ ] Chat message history export (download as text)
-- [ ] Two-factor/Social Login authentication for login
-- [ ] Customizable themes (user-selectable color schemes)
-- [ ] Mobile-friendly responsive design
+- [ ] Admin/moderator controls (ban/kick)
+- [ ] Chat history export
+- [ ] Two-factor/Social Login
+- [ ] Customizable themes
+- [ ] Mobile-friendly design
 - [ ] Invite links for private rooms
-- [ ] Activity logs for admin review
-- [ ] Accessibility improvements (screen reader support, contrast options)
+- [ ] Activity logs for admin
+- [ ] Accessibility improvements
 
 ---
 
@@ -86,7 +90,7 @@ messaging_app_socketio/
 
 ## Customization
 
-- **Dark Mode:** Toggle with the button in the sidebar.
+- **Dark Mode:** Toggle with the sidebar button.
 - **Admin Access:** Restrict admin panel by customizing `AdminModelView.is_accessible()`.
 
 ---
@@ -94,7 +98,7 @@ messaging_app_socketio/
 ## Security Notes
 
 - Passwords are **hashed** before storage.
-- Always use HTTPS and environment variables for secrets in production.
+- Use HTTPS and environment variables for secrets in production.
 
 ---
 

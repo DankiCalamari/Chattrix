@@ -1,8 +1,12 @@
-/* Import Google Fonts */
+/* =========================
+  Google Fonts Import
+  ========================= */
 @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
 
-/* Reset and base styles */
+/* =========================
+  Reset & Base Styles
+  ========================= */
 * {
   margin: 0;
   padding: 0;
@@ -11,8 +15,8 @@
 }
 
 /* =========================
-   Main Layout
-   ========================= */
+  Main Layout
+  ========================= */
 body {
   display: flex;
   flex-direction: row;
@@ -22,8 +26,8 @@ body {
 }
 
 /* =========================
-   Sidebar Styles
-   ========================= */
+  Sidebar
+  ========================= */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -54,7 +58,7 @@ body {
   margin-bottom: 20px;
 }
 .logout {
-  background-color: #2a7fa5; 
+  background-color: #2a7fa5;
   border: none;
   color: #fff;
   padding: 15px 0;
@@ -69,10 +73,26 @@ body {
 .logout:hover {
   background-color: #21809c;
 }
+.profile-link,
+.chat-link {
+  color: #2a7fa5;
+  text-decoration: none;
+  font-size: 16px;
+  margin-bottom: 10px;
+  padding: 8px 0;
+  display: block;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+.profile-link:hover,
+.chat-link:hover {
+  background: #2a7fa5;
+  color: #fff;
+}
 
 /* =========================
-   Online Users List
-   ========================= */
+  Online Users List
+  ========================= */
 #onlineUsers {
   width: 100%;
   background: #f0f6fb;
@@ -99,8 +119,8 @@ body {
 }
 
 /* =========================
-   Main Chat Area
-   ========================= */
+  Main Chat Area
+  ========================= */
 .main-content {
   flex: 1;
   padding: 40px;
@@ -109,8 +129,8 @@ body {
 }
 
 /* =========================
-   Chat Messages
-   ========================= */
+  Chat Messages
+  ========================= */
 #messages {
   background: #f4f6f8;
   padding: 10px;
@@ -125,6 +145,7 @@ body {
   font-family: "Space Mono", monospace;
   font-weight: 400;
 }
+/* System message styling */
 .system-message {
   color: #074858;
   font-style: italic;
@@ -136,6 +157,7 @@ body {
   font-size: 15px;
   border: 1px solid #b3cbe3;
 }
+/* Whisper message styling */
 .whisper-message {
   color: #21809c;
   font-style: italic;
@@ -144,6 +166,7 @@ body {
   padding: 5px 10px;
   margin: 5px 0;
 }
+/* Pinned message styling */
 .pinned-message {
   background: #fffbe6;
   border-left: 4px solid #2a7fa5;
@@ -156,7 +179,9 @@ body {
   box-shadow: 0 2px 8px rgba(42,127,165,0.08);
 }
 
-/* Pin button styling */
+/* =========================
+  Pin Button
+  ========================= */
 button {
   background: #e3f0fa;
   color: #2a7fa5;
@@ -175,8 +200,8 @@ button:hover {
 }
 
 /* =========================
-   Message Form
-   ========================= */
+  Message Form
+  ========================= */
 #messageForm {
   display: flex;
   gap: 10px;
@@ -208,8 +233,8 @@ button:hover {
 }
 
 /* =========================
-   Pinned Messages Section
-   ========================= */
+  Pinned Messages Section
+  ========================= */
 #pinnedMessages {
   margin-top: 15px;
   padding: 10px;
@@ -220,19 +245,155 @@ button:hover {
 }
 
 /* =========================
-   Dark Mode Styles
-   ========================= */
+  Profile Page Layout
+  ========================= */
+.profile-page-wrapper {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+  height: 100vh;
+}
+.profile-page-wrapper .sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 40px 20px 0 40px;
+  background: #e3f0fa;
+  min-width: 260px;
+  width: 300px;
+  height: 100vh;
+  border-right: 2px solid #b3cbe3;
+  gap: 20px;
+}
+.profile-page-wrapper .sidebar-logo {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 10px;
+}
+.profile-page-wrapper .sidebar-title {
+  font-size: 2em;
+  color: #2a7fa5;
+  margin-bottom: 10px;
+}
+.profile-page-wrapper .logout {
+  background-color: #2a7fa5;
+  border: none;
+  color: #fff;
+  padding: 15px 0;
+  font-size: 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
+  margin-bottom: 10px;
+  width: 100%;
+  transition: background 0.2s;
+}
+.profile-page-wrapper .logout:hover {
+  background-color: #21809c;
+}
+.profile-page-wrapper .profile-link,
+.profile-page-wrapper .chat-link {
+  color: #2a7fa5;
+  text-decoration: none;
+  font-size: 16px;
+  margin-bottom: 10px;
+  padding: 8px 0;
+  display: block;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+.profile-page-wrapper .profile-link:hover,
+.profile-page-wrapper .chat-link:hover {
+  background: #2a7fa5;
+  color: #fff;
+}
+.profile-page-wrapper .profile-container {
+  background: #f4f6f8;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
+  padding: 32px 40px;
+  margin: 40px auto;
+  max-width: 420px;
+  width: 100%;
+  font-family: "Space Mono", monospace;
+  color: #21809c;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.profile-container h2 {
+  color: #2a7fa5;
+  margin-bottom: 24px;
+  font-size: 2em;
+  font-family: "Space Mono", monospace;
+}
+.profile-container form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.profile-container label {
+  font-weight: 700;
+  color: #2a7fa5;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+.profile-container input[type="text"],
+.profile-container input[type="password"] {
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #b3cbe3;
+  background: #f0f6fb;
+  color: #21809c;
+  font-size: 16px;
+  font-family: "Space Mono", monospace;
+}
+.profile-container input[type="file"] {
+  margin-top: 4px;
+  font-size: 15px;
+}
+.profile-container input[type="submit"] {
+  background-color: #2a7fa5;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 0;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 10px;
+}
+.profile-container input[type="submit"]:hover {
+  background-color: #21809c;
+}
+.profile-container img {
+  margin-top: 10px;
+  border-radius: 50%;
+  border: 2px solid #2a7fa5;
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  background: #e3f0fa;
+}
+
+/* =========================
+  Dark Mode Styles
+  ========================= */
 body.dark-mode {
   background: #181a20;
 }
+/* Sidebar dark mode */
 body.dark-mode .sidebar {
   background: #23263a;
   border-right: 2px solid #353a4a;
 }
+/* Sidebar title and chat header dark mode */
 body.dark-mode .sidebar-title,
 body.dark-mode .chath2 h2 {
   color: #7bb7c6;
 }
+/* Logout button dark mode */
 body.dark-mode .logout {
   background-color: #353a4a;
   color: #f0f6fb;
@@ -254,16 +415,19 @@ body.dark-mode .logout:hover {
   color: #fff;
   text-decoration: none;
 }
+/* Online users dark mode */
 body.dark-mode #onlineUsers {
   background: #23263a;
   color: #7bb7c6;
   border: 1px solid #353a4a;
 }
+/* Messages dark mode */
 body.dark-mode #messages {
   background: #23263a;
   color: #7bb7c6;
   border: 1px solid #353a4a;
 }
+/* Message form dark mode */
 body.dark-mode #messageForm input[type="text"] {
   background-color: #23263a;
   color: #7bb7c6;
@@ -273,6 +437,7 @@ body.dark-mode #messageForm input[type="submit"] {
   background-color: #353a4a;
   color: #f0f6fb;
 }
+/* Pin button dark mode */
 body.dark-mode button {
   background: #353a4a;
   color: #7bb7c6;
@@ -282,111 +447,87 @@ body.dark-mode button:hover {
   background: #21809c;
   color: #fff;
 }
+/* Pinned messages dark mode */
 body.dark-mode #pinnedMessages {
   background: #23263a;
   color: #7bb7c6;
   border: 1px solid #353a4a;
 }
 
-/* --- Login Page Styles --- */
-.login-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
-  height: 100vh;
-  padding-left: 60px;
-  background: transparent;
-}
-
-.login-container h1 {
-  font-size: 2em;
-  color: #7bb7c6;
-  margin-bottom: 20px;
-  font-family: "Space Mono", monospace;
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 260px;
-}
-
-.login-form input[type="text"],
-.login-form input[type="password"] {
-  padding: 10px;
-  border-radius: 5px;
-  border: 1px solid #b3cbe3;
+/* --- Dark Mode for Profile Page with Sidebar --- */
+body.dark-mode .profile-page-wrapper .sidebar {
   background: #23263a;
+  border-right: 2px solid #353a4a;
+}
+body.dark-mode .profile-page-wrapper .sidebar-title {
   color: #7bb7c6;
-  font-size: 16px;
-  font-family: "Space Mono", monospace;
 }
-
-.login-form input[type="submit"] {
-  background-color: #2a7fa5;
-  color: #fff;
-  border: none;
-  border-radius: 5px;
-  padding: 10px 0;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background 0.2s;
+body.dark-mode .profile-page-wrapper .logout {
+  background-color: #353a4a;
+  color: #f0f6fb;
 }
-
-.login-form input[type="submit"]:hover {
+body.dark-mode .profile-page-wrapper .logout:hover {
   background-color: #21809c;
 }
-
-.login-links {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.login-links a {
+body.dark-mode .profile-page-wrapper .profile-link,
+body.dark-mode .profile-page-wrapper .chat-link {
   color: #7bb7c6;
-  text-decoration: none;
-  font-size: 15px;
-  font-family: "Space Mono", monospace;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background 0.2s, color 0.2s;
 }
-
-.login-links a:hover {
-  background: #2a7fa5;
+body.dark-mode .profile-page-wrapper .profile-link:hover,
+body.dark-mode .profile-page-wrapper .chat-link:hover {
+  background: #21809c;
   color: #fff;
 }
-
-/* --- Dark Mode for Login --- */
-body.dark-mode .login-container {
-  background: transparent;
+body.dark-mode .profile-page-wrapper .profile-container {
+  background: #23263a;
+  color: #7bb7c6;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
 }
-
-body.dark-mode .login-form input[type="text"],
-body.dark-mode .login-form input[type="password"] {
+body.dark-mode .profile-container h2 {
+  color: #7bb7c6;
+}
+body.dark-mode .profile-container label {
+  color: #7bb7c6;
+}
+body.dark-mode .profile-container input[type="text"],
+body.dark-mode .profile-container input[type="password"] {
   background: #23263a;
   color: #7bb7c6;
   border: 1px solid #353a4a;
 }
-
-body.dark-mode .login-form input[type="submit"] {
+body.dark-mode .profile-container input[type="submit"] {
   background-color: #353a4a;
   color: #f0f6fb;
 }
-
-body.dark-mode .login-form input[type="submit"]:hover {
+body.dark-mode .profile-container input[type="submit"]:hover {
   background-color: #21809c;
   color: #fff;
 }
-
-body.dark-mode .login-links a {
-  color: #7bb7c6;
+body.dark-mode .profile-container img {
+  border: 2px solid #7bb7c6;
+  background: #23263a;
 }
 
-body.dark-mode .login-links a:hover {
-  background: #21809c;
-  color: #fff;
+/* =========================
+  Profile Container Centering
+  ========================= */
+.profile-page-wrapper {
+  display: flex;
+  flex-direction: row;
+  min-height: 100vh;
+  height: 100vh;
+}
+.profile-page-wrapper .sidebar {
+  min-width: 260px;
+  width: 300px;
+  height: 100vh;
+}
+.profile-page-wrapper .profile-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* Center vertically */
+  margin: 0;
+  min-height: 100vh;
 }

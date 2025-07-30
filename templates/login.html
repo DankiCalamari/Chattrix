@@ -1,23 +1,31 @@
 {% extends "base.html" %}
 {% block content %}
 
+<!-- Sidebar with logo and title -->
 <div class="sidebar">
     <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
     <h1 class="sidebar-title">Chattrix</h1>
 </div>
+
+<!-- Login form container -->
 <div class="login-container">
     <div class="login">
         <h2>Login</h2>
+        <!-- Login form -->
         <form method="post" class="login-form">
+            <!-- Username input -->
             <div class="inputBx">
                 <input type="text" placeholder="Username" name="username" required>
             </div>
+            <!-- Password input -->
             <div class="inputBx">
                 <input type="password" placeholder="Password" name="password" required>
             </div>
+            <!-- Submit button -->
             <div class="inputBx">
                 <input type="submit" value="Sign in">
             </div>
+            <!-- Links for password recovery and registration -->
             <div class="login-links">
                 <a href="#">Forget Password</a>
                 <a href="{{ url_for('register') }}">Register</a>
@@ -25,6 +33,5 @@
         </form>
     </div>
 </div>
+
 {% endblock %}
-
-

@@ -1,32 +1,41 @@
-
 {% extends "base.html" %}
 {% block content %}
 
+<!-- Sidebar with logo and title -->
 <div class="sidebar">
     <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
     <h1 class="sidebar-title">Chattrix</h1>
 </div>
+
+<!-- Main content area for registration form -->
 <div class="main-content">
     <div class="login">
         <h2>Register</h2>
+        <!-- Registration form -->
         <form method="post">
+            <!-- Display Name input -->
             <div class="inputBx">
-                <input type="text" placeholder="DisplayName" name="display_name" required>
+                <input type="text" placeholder="Display Name" name="display_name" required>
             </div>
+            <!-- Username input -->
             <div class="inputBx">
                 <input type="text" placeholder="Username" name="username" required>
             </div>
+            <!-- Password input -->
             <div class="inputBx">
                 <input type="password" placeholder="Password" name="password" required>
             </div>
-            <div class="inputBx">
+            <!-- Submit button -->
+            <div class="inputBx"></div>
                 <input type="submit" value="Register">
             </div>
+            <!-- Links for password recovery and login -->
             <div class="links">
-                <a href="#">Forget Password</a>
+                <a href="#">Forgot Password</a>
                 <a href="{{ url_for('login') }}">Login</a>
             </div>
         </form>
     </div>
 </div>
-{% endblock %}
+
+{% endblock %}</div>

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<!-- Profile Page Wrapper -->
+<div class="profile-page-wrapper">
+    <!-- Sidebar Section -->
+    <div class="sidebar">
+        <!-- App Logo -->
+        <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
+        <h1 class="sidebar-title">Chattrix</h1>
+        <div class="chath2">
+            <h2>Profile</h2>
+        </div>
+        <!-- Navigation Links -->
+        <a class="chat-link" href="{{ url_for('index') }}">Back to Chat</a>
+        <a class="logout" href="{{ url_for('logout') }}">Logout</a>
+        <!-- Dark Mode Toggle Button -->
+        <button id="darkModeToggle">🌙 Dark Mode</button>
+    </div>
+
+    <!-- Profile Settings Section -->
+    <div class="profile-container">
+        <h2>Profile Settings</h2>
+        <form method="POST" enctype="multipart/form-data">
+            <!-- Display Name Field -->
+            <label for="display_name">Display Name:</label>
+            <input type="text" name="display_name" id="display_name" value="{{ user.display_name }}">
+
+            <!-- Password Field -->
+            <label for="password">New Password:</label>
+            <input type="password" name="password" id="password" placeholder="Leave blank to keep current">
+            <!-- Bio Field -->
+            <label for="bio">Bio:</label>
+            <textarea name="bio" id="bio" rows="4" placeholder="Tell us about yourself...">{{ user.bio }}</textarea>
+            <!-- Profile Picture Upload -->
+            <label for="profile_pic">Profile Picture:</label>
+            <input type="file" name="profile_pic" id="profile_pic" accept="image/*">
+
+            <!-- Show Current Profile Picture If Exists -->
+            {% if user.profile_pic %}
+                <img src="{{ url_for('static', filename='profile_pics/' ~ user.profile_pic) }}" alt="Profile Picture">
+            {% endif %}
+            
+            <!-- Submit Button -->
+            <input type="submit" value="Update Profile">
+        </form>
+    </div>
+</div>
+
+<!-- Dark Mode Script -->
+<script>
+    // Toggle dark mode and save preference to localStorage
+    document.getElementById('darkModeToggle').onclick = function() {
+        document.body.classList.toggle('dark-mode');
+        localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+    };
+
+    // On page load, set theme from localStorage
+    if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+    }
+</script>
+{% endblock %}
