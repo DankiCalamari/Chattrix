@@ -1,110 +1,13 @@
 /* Import Google Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap");
 
 /* Reset and base styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: "Quicksand", sans-serif;
-}
-
-/* =========================
-   Animated Ring Loader
-   ========================= */
-/* .ring {
-  position: relative;
-  width: 500px;
-  height: 500px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.ring i {
-  position: absolute;
-  inset: 0;
-  border: 2px solid #fff;
-  transition: 0.5s;
-}
-.ring i:nth-child(1) {
-  border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%;
-  animation: animate 6s linear infinite;
-}
-.ring i:nth-child(2) {
-  border-radius: 41% 44% 56% 59%/38% 62% 63% 37%;
-  animation: animate 4s linear infinite;
-}
-.ring i:nth-child(3) {
-  border-radius: 41% 44% 56% 59%/38% 62% 63% 37%;
-  animation: animate2 10s linear infinite;
-}
-.ring:hover i {
-  border: 6px solid var(--clr);
-  filter: drop-shadow(0 0 20px var(--clr));
-}
-@keyframes animate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes animate2 {
-  0% { transform: rotate(360deg); }
-  100% { transform: rotate(0deg); }
-} */
-
-/* =========================
-   Login Form Styles
-   ========================= */
-.login {
-  position: absolute;
-  width: 300px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 20px;
-}
-.login h2 {
-  font-size: 2em;
-  color: #21809c;
-}
-.login .inputBx {
-  position: relative;
-  width: 100%;
-}
-.login .inputBx input {
-  width: 100%;
-  padding: 12px 20px;
-  background: transparent;
-  border: 2px solid #b3cbe3;
-  border-radius: 40px;
-  font-size: 1.2em;
-  color: #21809c;
-  outline: none;
-}
-.login .inputBx input[type="submit"] {
-  background: linear-gradient(45deg, #2a7fa5, #7bb7c6);
-  border: none;
-  cursor: pointer;
-  color: #fff;
-}
-.login .inputBx input::placeholder {
-  color: #7bb7c6;
-}
-.login .links {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-}
-.login .links a {
-  color: #21809c;
-  text-decoration: none;
-}
-.login a {
-
-  text-decoration: none;
+  font-family: "Quicksand", "Space Mono", monospace, sans-serif;
 }
 
 /* =========================
@@ -223,10 +126,15 @@ body {
   font-weight: 400;
 }
 .system-message {
-  color: #7bb7c6;
+  color: #074858;
   font-style: italic;
   text-align: center;
   margin: 10px 0;
+  background: #e3f0fa;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 15px;
+  border: 1px solid #b3cbe3;
 }
 .whisper-message {
   color: #21809c;
@@ -236,12 +144,46 @@ body {
   padding: 5px 10px;
   margin: 5px 0;
 }
+.pinned-message {
+  background: #fffbe6;
+  border-left: 4px solid #2a7fa5;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  color: #2a7fa5;
+  font-family: "Space Mono", monospace;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
+}
+
+/* Pin button styling */
+button {
+  background: #e3f0fa;
+  color: #2a7fa5;
+  border: 1px solid #b3cbe3;
+  border-radius: 5px;
+  padding: 4px 10px;
+  margin-left: 10px;
+  cursor: pointer;
+  font-family: "Space Mono", monospace;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+button:hover {
+  background: #2a7fa5;
+  color: #fff;
+}
 
 /* =========================
    Message Form
    ========================= */
+#messageForm {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
 #messageForm input[type="text"] {
-  width: 1000px;
+  flex: 1;
   border-radius: 5px;
   color: #21809c;
   background-color: #f0f6fb;
@@ -258,11 +200,23 @@ body {
   padding: 10px 20px;
   font-size: 16px;
   cursor: pointer;
-  margin: 10px;
+  margin: 0 10px;
   transition: background 0.2s;
 }
 #messageForm input[type="submit"]:hover {
   background-color: #21809c;
+}
+
+/* =========================
+   Pinned Messages Section
+   ========================= */
+#pinnedMessages {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f4f6f8;
+  border: 1px solid #b3cbe3;
+  border-radius: 8px;
+  min-height: 40px;
 }
 
 /* =========================
@@ -282,9 +236,23 @@ body.dark-mode .chath2 h2 {
 body.dark-mode .logout {
   background-color: #353a4a;
   color: #f0f6fb;
+  border: none;
+  padding: 15px 0;
+  font-size: 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(42,127,165,0.08);
+  margin-bottom: 10px;
+  width: 100%;
+  text-align: center;
+  transition: background 0.2s, color 0.2s;
+  text-decoration: none;
+  display: block;
 }
 body.dark-mode .logout:hover {
   background-color: #21809c;
+  color: #fff;
+  text-decoration: none;
 }
 body.dark-mode #onlineUsers {
   background: #23263a;
@@ -305,15 +273,120 @@ body.dark-mode #messageForm input[type="submit"] {
   background-color: #353a4a;
   color: #f0f6fb;
 }
-#dark-mode-toggle {
+body.dark-mode button {
   background: #353a4a;
-  color: #f0f6fb;
+  color: #7bb7c6;
   border: 1px solid #7bb7c6;
+}
+body.dark-mode button:hover {
+  background: #21809c;
+  color: #fff;
+}
+body.dark-mode #pinnedMessages {
+  background: #23263a;
+  color: #7bb7c6;
+  border: 1px solid #353a4a;
+}
+
+/* --- Login Page Styles --- */
+.login-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  height: 100vh;
+  padding-left: 60px;
+  background: transparent;
+}
+
+.login-container h1 {
+  font-size: 2em;
+  color: #7bb7c6;
+  margin-bottom: 20px;
+  font-family: "Space Mono", monospace;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 260px;
+}
+
+.login-form input[type="text"],
+.login-form input[type="password"] {
+  padding: 10px;
   border-radius: 5px;
-  padding: 5px 10px;
+  border: 1px solid #b3cbe3;
+  background: #23263a;
+  color: #7bb7c6;
+  font-size: 16px;
+  font-family: "Space Mono", monospace;
+}
+
+.login-form input[type="submit"] {
+  background-color: #2a7fa5;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 0;
+  font-size: 16px;
   cursor: pointer;
   transition: background 0.2s;
 }
-#dark-mode-toggle:hover {
+
+.login-form input[type="submit"]:hover {
+  background-color: #21809c;
+}
+
+.login-links {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.login-links a {
+  color: #7bb7c6;
+  text-decoration: none;
+  font-size: 15px;
+  font-family: "Space Mono", monospace;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.login-links a:hover {
+  background: #2a7fa5;
+  color: #fff;
+}
+
+/* --- Dark Mode for Login --- */
+body.dark-mode .login-container {
+  background: transparent;
+}
+
+body.dark-mode .login-form input[type="text"],
+body.dark-mode .login-form input[type="password"] {
+  background: #23263a;
+  color: #7bb7c6;
+  border: 1px solid #353a4a;
+}
+
+body.dark-mode .login-form input[type="submit"] {
+  background-color: #353a4a;
+  color: #f0f6fb;
+}
+
+body.dark-mode .login-form input[type="submit"]:hover {
+  background-color: #21809c;
+  color: #fff;
+}
+
+body.dark-mode .login-links a {
+  color: #7bb7c6;
+}
+
+body.dark-mode .login-links a:hover {
   background: #21809c;
-} 
+  color: #fff;
+}

@@ -15,16 +15,78 @@
     <form id="messageForm">
         <input type="text" id="msgInput" placeholder="Type your message..." required>
         <input type="submit" value="Send">
+
     </form>
+            <button id="togglePinnedBtn">Show Pinned Messages</button>
+    <div id="pinnedMessages" style="display:none; margin-top:15px;"></div>
 </div>
 
 <script>
 // Initialize socket.io
 const socket = io();
 const messageContainer = document.getElementById('messages');
+const pinnedBtn = document.getElementById('togglePinnedBtn');
+const pinnedContainer = document.getElementById('pinnedMessages');
+let pinnedVisible = false;
+const isAdmin = {{ current_user.is_admin|tojson }};
 
 // Notify server when user joins
 socket.emit('user_joined');
+
+socket.on('update_pinned', function() {
+    if (pinnedVisible) {
+        loadPinnedMessages();
+    }
+});
+
+pinnedBtn.onclick = function() {
+    pinnedVisible = !pinnedVisible;
+    if (pinnedVisible) {
+        pinnedBtn.textContent = "Hide Pinned Messages";
+        loadPinnedMessages();
+        pinnedContainer.style.display = "block";
+    } else {
+        pinnedBtn.textContent = "Show Pinned Messages";
+        pinnedContainer.style.display = "none";
+    }
+};
+
+
+
+// In your loadPinnedMessages function:
+function loadPinnedMessages() {
+    fetch('/pinned_messages')
+        .then(res => res.json())
+        .then(data => {
+            pinnedContainer.innerHTML = '';
+            if (data.length === 0) {
+                pinnedContainer.innerHTML = '<div class="system-message">No pinned messages.</div>';
+                return;
+            }
+            data.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = 'pinned-message';
+                div.innerHTML = `<strong>${msg.display_name}</strong>: ${msg.text} <small>(${msg.timestamp})</small>`;
+                // Only show unpin button for admins
+                if (typeof isAdmin !== "undefined" && isAdmin) {
+                    const unpinBtn = document.createElement('button');
+                    unpinBtn.textContent = 'Unpin';
+                    unpinBtn.onclick = function() {
+                        socket.emit('unpin_message', { message_id: msg.id });
+                    };
+                    div.appendChild(unpinBtn);
+                }
+                pinnedContainer.appendChild(div);
+            });
+        });
+}
+
+// Listen for real-time updates to pinned messages
+socket.on('update_pinned', function() {
+    if (pinnedVisible) {
+        loadPinnedMessages();
+    }
+});
 
 /**
  * Adds a message to the message container.
@@ -40,9 +102,22 @@ function addMessage(data) {
         div.innerHTML = `<em>${data.text}</em>`;
     } else {
         div.innerHTML = `<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
+        // Only show pin button for normal messages and only for admins
+        if (data.id && typeof isAdmin !== "undefined" && isAdmin) {
+            const pinBtn = document.createElement('button');
+            pinBtn.textContent = 'Pin';
+            pinBtn.onclick = function() {
+                socket.emit('pin_message', { message_id: data.id });
+            };
+            div.appendChild(pinBtn);
+        }
     }
     messageContainer.appendChild(div);
 }
+  messageContainer.scrollTop = messageContainer.scrollHeight;
+
+
+  
 
 /**
  * Loads previous messages from the server and displays them.

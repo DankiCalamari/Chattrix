@@ -61,6 +61,7 @@ class Message(db.Model):
     sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     whisper = db.Column(db.Boolean, default=False)
     to_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    pinned = db.Column(db.Boolean, default=False)
 
     # Relationships
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
@@ -83,7 +84,25 @@ class AdminModelView(ModelView):
 admin.add_view(AdminModelView(User, db.session))
 admin.add_view(AdminModelView(Message, db.session))
 
+@socketio.on('pin_message')
+def handle_pin_message(data):
+    if current_user.is_authenticated and current_user.is_admin:
+        msg = Message.query.get(data['message_id'])
+        if msg:
+            msg.pinned = True
+            db.session.commit()
+            # Notify all clients to reload pinned messages
+            socketio.emit('update_pinned')
 
+@socketio.on('unpin_message')
+def handle_unpin_message(data):
+    if current_user.is_authenticated and current_user.is_admin:
+        msg = Message.query.get(data['message_id'])
+        if msg:
+            msg.pinned = False
+            db.session.commit()
+            # Notify all clients to reload pinned messages
+            socketio.emit('update_pinned')
 
 # Handle whisper (private message)
 @socketio.on('whisper')
@@ -173,15 +192,16 @@ def handle_send_message(data):
 
 # Get all messages (public and whispers relevant to user)
 @app.route('/messages')
+@app.route('/messages')
 @login_required
 def get_messages():
     messages = Message.query.order_by(Message.timestamp.asc()).all()
     result = []
     for msg in messages:
-        # Show whispers only to sender or recipient
         if msg.whisper:
             if msg.sender_id == current_user.id or msg.to_user_id == current_user.id:
                 result.append({
+                    'id': msg.id,  # <-- This line is required!
                     'display_name': msg.sender.display_name if msg.sender else 'System',
                     'text': msg.text,
                     'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
@@ -190,12 +210,27 @@ def get_messages():
                 })
         else:
             result.append({
+                'id': msg.id,  # <-- This line is required!
                 'display_name': msg.sender.display_name if msg.sender else 'System',
                 'text': msg.text,
                 'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')
             })
     return jsonify(result)
 
+@app.route('/pinned_messages')
+@login_required
+def get_pinned_messages():
+    pinned = Message.query.filter_by(pinned=True).order_by(Message.timestamp.desc()).all()
+    result = []
+    for msg in pinned:
+        result.append({
+            'id': msg.id,
+            'display_name': msg.sender.display_name if msg.sender else 'System',
+            'text': msg.text,
+            'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'pinned': True
+        })
+    return jsonify(result)
 # Notify when a user joins
 @socketio.on('user_joined')
 def handle_user_joined():
@@ -205,6 +240,22 @@ def handle_user_joined():
             'text': f"{current_user.display_name} has joined the chat.",
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }, broadcast=True)
+
+# Automatically create an admin user if not exists
+with app.app_context():
+    admin_username = "admin"
+    admin_password = "admin123"  # Change this to a secure password!
+    if not User.query.filter_by(username=admin_username).first():
+        admin_user = User(
+            display_name="Administrator",
+            username=admin_username,
+            password=generate_password_hash(admin_password, method='pbkdf2:sha256'),
+            is_admin=True
+        )
+        db.session.add(admin_user)
+        db.session.commit()
+        print("Admin user created: username='admin', password='admin123'")
+
 
 # Run the app
 if __name__ == '__main__':

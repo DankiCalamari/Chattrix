@@ -5,10 +5,10 @@
     <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
     <h1 class="sidebar-title">Chattrix</h1>
 </div>
-<div class="main-content">
+<div class="login-container">
     <div class="login">
         <h2>Login</h2>
-        <form method="post">
+        <form method="post" class="login-form">
             <div class="inputBx">
                 <input type="text" placeholder="Username" name="username" required>
             </div>
@@ -18,7 +18,7 @@
             <div class="inputBx">
                 <input type="submit" value="Sign in">
             </div>
-            <div class="links">
+            <div class="login-links">
                 <a href="#">Forget Password</a>
                 <a href="{{ url_for('register') }}">Register</a>
             </div>
