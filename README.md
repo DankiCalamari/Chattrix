@@ -38,6 +38,8 @@ Features include public chat, private whispers, online user tracking, password e
 - [ ] Activity logs for admin review
 - [ ] Accessibility improvements (screen reader support, contrast options)
 
+---
+
 ## Getting Started
 
 ### 1. Install Dependencies
