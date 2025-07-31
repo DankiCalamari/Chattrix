@@ -14,13 +14,20 @@
     <link href="https://fonts.googleapis.com/css2?family=Special+Gothic+Expanded+One&display=swap" rel="stylesheet">
     <!-- Google Fonts: Space Mono (regular and bold) -->
     <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
 </head>
 <body>
     <!-- Main content block for child templates -->
+
+    
+
     {% block content %}{% endblock %}
 
     <!-- Dark mode toggle script -->
     <script>
+
+
+
     // Wait for DOM to load
     window.addEventListener('DOMContentLoaded', function() {
         // Get the dark mode toggle button by its ID
@@ -48,6 +55,20 @@
             localStorage.setItem('darkMode', darkPref ? '1' : '0');
         };
     });
+
     </script>
+    <!-- Notyf JS for toast notifications -->
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script>
+      var notyf = new Notyf({
+        duration: 3500,
+        position: { x: 'right', y: 'top' }
+      });
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          notyf.open({ type: '{{ category }}', message: '{{ message }}' });
+        {% endfor %}
+      {% endwith %}
+</script>
 </body>
 </html>

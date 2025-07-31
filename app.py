@@ -8,13 +8,17 @@ from flask_admin.contrib.sqla import ModelView
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from werkzeug.utils import secure_filename
+from flask_toastr import Toastr
+from flask import flash
 
 # --- Flask app setup ---
 app = Flask(__name__)
+toastr = Toastr(app)
 app.config['SECRET_KEY'] = 'secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'profile_pics')
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB max upload
+
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, manage_session=True)
@@ -192,35 +196,37 @@ def index():
 # --- User registration ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """Register a new user."""
     if request.method == 'POST':
         display_name = request.form['display_name']
         username = request.form['username']
         password = request.form['password']
-        hashedPassword = generate_password_hash(password, method='pbkdf2:sha256')
-        # Check if username already exists
         if User.query.filter_by(username=username).first():
-            return "Username already exists", 400
-        # Create new user
-        user = User(display_name=display_name, username=username, password=hashedPassword)
-        db.session.add(user)
-        db.session.commit()
-        return redirect(url_for('login'))
+            flash("Username already taken.", "error")
+        else:
+            hashedPassword = generate_password_hash(password, method='pbkdf2:sha256')
+            user = User(display_name=display_name, username=username, password=hashedPassword)
+            db.session.add(user)
+            db.session.commit()
+            flash("Registration successful! Please log in.", "success")
+            return redirect(url_for('login'))
     return render_template('register.html')
 
 # --- User login ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login user."""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password, password):
+        if not user:
+            flash("User does not exist.", "error")
+        elif not check_password_hash(user.password, password):
+            flash("Incorrect password.", "error")
+        else:
             login_user(user)
+            flash("Login successful!", "success")
             return redirect(url_for('index'))
     return render_template('login.html')
-
 # --- User logout ---
 @app.route('/logout')
 @login_required
