@@ -203,9 +203,10 @@ button:hover {
   Message Form
   ========================= */
 #messageForm {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
 }
 #messageForm input[type="text"] {
   flex: 1;
@@ -666,3 +667,59 @@ body.dark-mode .login-links a:hover {
   color: #fff;
 }
 
+.file-upload-btn {
+    background: #2a7fa5 !important;
+    color: white !important;
+    padding: 8px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.2s;
+    display: inline-block;
+    margin-right: 10px;
+    border: none;
+    text-decoration: none;
+}
+
+.file-upload-btn:hover {
+    background: #21809c !important;
+}
+
+/* Dark mode styling */
+body.dark-mode .file-upload-btn {
+    background: #353a4a !important;
+    color: #f0f6fb !important;
+}
+
+body.dark-mode .file-upload-btn:hover {
+    background: #21809c !important;
+    color: #fff !important;
+}
+
+/* Image message styling */
+.message img:not([alt="Profile"]) {
+    max-width: 300px;
+    max-height: 300px;
+    border-radius: 8px;
+    margin-top: 5px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.message img:not([alt="Profile"]):hover {
+    transform: scale(1.02);
+}
+
+/* Dark mode for images */
+body.dark-mode .message {
+    background: #23263a !important;
+    color: #7bb7c6 !important;
+}
+
+body.dark-mode .message strong {
+    color: #7bb7c6 !important;
+}
+
+body.dark-mode .message a {
+    color: #7bb7c6 !important;
+}

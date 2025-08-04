@@ -10,15 +10,26 @@ import os
 from werkzeug.utils import secure_filename
 from flask_toastr import Toastr
 from flask import flash
+from werkzeug.utils import secure_filename
 
 # --- Flask app setup ---
+# --- Flask app setup ---
 app = Flask(__name__)
-toastr = Toastr(app)
 app.config['SECRET_KEY'] = 'secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'static', 'profile_pics')
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB max upload
 
+# Fix upload folder configuration
+PROFILE_PICS_FOLDER = os.path.join('static', 'profile_pics')
+UPLOADS_FOLDER = os.path.join('static', 'uploads')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'txt', 'docx', 'mp4'}
+
+app.config['PROFILE_PICS_FOLDER'] = PROFILE_PICS_FOLDER
+app.config['UPLOADS_FOLDER'] = UPLOADS_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Create upload directories
+os.makedirs(PROFILE_PICS_FOLDER, exist_ok=True)
+os.makedirs(UPLOADS_FOLDER, exist_ok=True)
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, manage_session=True)
@@ -69,16 +80,20 @@ def handle_disconnect():
 # --- Message model ---
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     text = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    timestamp = db.Column(db.DateTime, default=datetime.now)
     whisper = db.Column(db.Boolean, default=False)
     to_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    pinned = db.Column(db.Boolean, default=False)
-
-    # Relationships
+    pinned = db.Column(db.Boolean, default=False)  # Add this line
+    is_file = db.Column(db.Boolean, default=False)
+    file_path = db.Column(db.String(255), nullable=True)
+    original_filename = db.Column(db.String(255), nullable=True)
+    
     sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
     to_user = db.relationship('User', foreign_keys=[to_user_id], backref='received_whispers')
+
+
 
 # --- Create tables ---
 with app.app_context():
@@ -93,6 +108,7 @@ def profile():
         bio = request.form.get('bio')
         display_name = request.form.get('display_name')
         password = request.form.get('password')
+        
         # Change display name
         if display_name:
             current_user.display_name = display_name
@@ -103,23 +119,72 @@ def profile():
         
         if bio is not None:
             current_user.bio = bio
+            
         # Change profile picture
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
-            if file and file.filename:
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"{current_user.id}_{file.filename}")
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                filepath = os.path.join(app.config['PROFILE_PICS_FOLDER'], filename)
                 file.save(filepath)
                 current_user.profile_pic = filename
 
         db.session.commit()
+        flash("Profile updated successfully!", "success")
         return redirect(url_for('profile'))
 
     return render_template('profile.html', user=current_user)
 
-# --- Ensure profile_pics folder exists ---
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file selected'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not (file and allowed_file(file.filename)):
+        return jsonify({'error': 'File type not allowed'}), 400
+    
+    try:
+        filename = secure_filename(f"{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
+        filepath = os.path.join(app.config['UPLOADS_FOLDER'], filename)
+        file.save(filepath)
+        
+        # Save file message to database
+        file_message = Message(
+            sender_id=current_user.id,
+            text=f"[FILE:{filename}:{file.filename}]",
+            timestamp=datetime.now(),
+            whisper=False,
+            is_file=True,
+            file_path=filepath,
+            original_filename=file.filename
+        )
+        db.session.add(file_message)
+        db.session.commit()
+        
+        # Emit to all users
+        socketio.emit('receive_message', {
+            'id': file_message.id,
+            'display_name': current_user.display_name,
+            'text': file_message.text,
+            'timestamp': file_message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'whisper': False,
+            'profile_pic': current_user.profile_pic or 'default.png'
+        })
+        
+        return jsonify({'success': True, 'filename': filename})
+        
+    except Exception as e:
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 # --- Flask-Admin setup ---
 admin = Admin(app, name='Chattrix Admin', template_mode='bootstrap4')

@@ -24,7 +24,7 @@ Current features include public chat, private whispers, online user tracking, pa
 - [x] Pinned Messages
 - [x] User profile pages (avatar, bio)
 - [ ] Message search/filter
-- [ ] File/image sharing
+- [x] File/image sharing
 - [ ] Emoji/sticker support
 - [ ] Message editing/deletion
 - [ ] Typing indicators

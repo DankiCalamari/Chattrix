@@ -13,7 +13,9 @@
 </div>
 <div class="main-content">
     <div id="messages"></div>
-    <form id="messageForm">
+        <form id="messageForm">
+        <label for="file-input" class="file-upload-btn">📎</label>
+        <input type="file" id="file-input" accept="image/*,.pdf,.txt,.docx,.mp4" style="display: none;">
         <input type="text" id="msgInput" placeholder="Type your message..." required>
         <input type="submit" value="Send">
     </form>
@@ -53,7 +55,108 @@ pinnedBtn.onclick = function() {
     }
 };
 
+// File upload handling
+document.getElementById('file-input').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        uploadFile(file);
+    }
+});
 
+// File upload handling
+document.getElementById('file-input').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        uploadFile(file);
+    }
+});
+
+function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    fetch('/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('File uploaded successfully');
+        } else {
+            console.error('Upload failed:', data.error);
+            flash('Upload failed: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Upload error:', error);
+        flash('Upload failed: ' + error.message);
+    });
+}
+
+// Enhanced message rendering for files
+function renderMessage(data) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message';
+    messageDiv.style.marginBottom = '10px';
+    messageDiv.style.padding = '8px';
+    messageDiv.style.borderRadius = '8px';
+    messageDiv.style.background = '#f0f6fb';
+    
+    // Check if message is a file
+    if (data.text.startsWith('[FILE:')) {
+        const fileData = data.text.match(/\[FILE:(.*?):(.*?)\]/);
+        if (fileData) {
+            const [, filename, originalName] = fileData;
+            const fileExtension = filename.split('.').pop().toLowerCase();
+            
+            if (['png', 'jpg', 'jpeg', 'gif'].includes(fileExtension)) {
+                // Render image
+                messageDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <img src="/static/profile_pics/${data.profile_pic}" alt="Profile" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
+                        <strong style="color: #2a7fa5;">${data.display_name}</strong>
+                        <small style="color: #666; margin-left: 10px;">${data.timestamp}</small>
+                    </div>
+                    <div style="margin-left: 40px;">
+                        <img src="/static/uploads/${filename}" alt="${originalName}" style="max-width: 300px; max-height: 300px; border-radius: 8px; cursor: pointer;" onclick="window.open('/static/uploads/${filename}', '_blank')">
+                        <br><small style="color: #666;">📷 ${originalName}</small>
+                    </div>
+                `;
+            } else {
+                // Render file download link
+                messageDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <img src="/static/profile_pics/${data.profile_pic}" alt="Profile" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
+                        <strong style="color: #2a7fa5;">${data.display_name}</strong>
+                        <small style="color: #666; margin-left: 10px;">${data.timestamp}</small>
+                    </div>
+                    <div style="margin-left: 40px;">
+                        📎 <a href="/static/uploads/${filename}" download="${originalName}" style="color: #2a7fa5; text-decoration: none;">${originalName}</a>
+                    </div>
+                `;
+            }
+        }
+    } else {
+        // Regular text message
+        messageDiv.innerHTML = `
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                <img src="/static/profile_pics/${data.profile_pic}" alt="Profile" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
+                <strong style="color: #2a7fa5;">${data.display_name}</strong>
+                <small style="color: #666; margin-left: 10px;">${data.timestamp}</small>
+            </div>
+            <div style="margin-left: 40px; color: #21809c;">${data.text}</div>
+        `;
+    }
+    
+    document.getElementById('messages').appendChild(messageDiv);
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+// Update the socket listener to use renderMessage
+socket.on('receive_message', function(data) {
+    renderMessage(data);
+});
 
 // In your loadPinnedMessages function:
 function loadPinnedMessages() {
