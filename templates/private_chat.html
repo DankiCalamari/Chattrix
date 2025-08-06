@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="app-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">💬</div>
+            <h1 class="sidebar-title">Chattrix</h1>
+            <p class="sidebar-subtitle">Private Chat</p>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('index') }}" class="nav-item">
+                <span class="nav-icon">🏠</span> Public Chat
+            </a>
+            <a href="{{ url_for('conversations') }}" class="nav-item">
+                <span class="nav-icon">💬</span> Private Chats
+            </a>
+            <a href="{{ url_for('user_list') }}" class="nav-item">
+                <span class="nav-icon">👥</span> All Users
+            </a>
+            <a href="{{ url_for('profile') }}" class="nav-item">
+                <span class="nav-icon">👤</span> Profile
+            </a>
+            {% if current_user.is_admin %}
+                <a href="/admin" class="nav-item">
+                    <span class="nav-icon">⚙️</span> Admin
+                </a>
+            {% endif %}
+        </nav>
+        
+        <div class="online-users">
+            <div class="online-users-title">Chat with</div>
+            <div class="private-chat-user">
+                <div class="conversation-avatar" style="width: 40px; height: 40px; font-size: 1rem;">
+                    {{ other_user.display_name[0].upper() if other_user.display_name else other_user.username[0].upper() }}
+                </div>
+                <div style="margin-left: 0.75rem;">
+                    <div style="font-weight: 600; color: var(--text-primary); font-size: 0.875rem;">
+                        {{ other_user.display_name or other_user.username }}
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                        @{{ other_user.username }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <button class="btn btn-danger btn-block" onclick="window.location.href='/logout'">
+            Logout
+        </button>
+        <button id="darkModeToggle" class="dark-mode-toggle">🌙</button>
+    </div>
+
+    <div class="main-content">
+        <div class="main-header">
+            <h1 class="main-title">
+                💬 {{ other_user.display_name or other_user.username }}
+            </h1>
+        </div>
+        
+        <div id="privateMessages" class="messages-container">
+            <!-- Load existing messages -->
+            {% for message in messages %}
+                <div class="message {% if message.sender_id == current_user.id %}private{% endif %}">
+                    <div class="message-avatar">
+                        {% if message.sender_id == current_user.id %}
+                            {{ current_user.display_name[0].upper() if current_user.display_name else current_user.username[0].upper() }}
+                        {% else %}
+                            {{ other_user.display_name[0].upper() if other_user.display_name else other_user.username[0].upper() }}
+                        {% endif %}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-author">
+                                {% if message.sender_id == current_user.id %}
+                                    {{ current_user.display_name or current_user.username }}
+                                {% else %}
+                                    {{ other_user.display_name or other_user.username }}
+                                {% endif %}
+                            </span>
+                            <span class="message-time">{{ message.timestamp.strftime('%H:%M') }}</span>
+                        </div>
+                        <div class="message-text">{{ message.text }}</div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <div class="message-form-container">
+            <form id="privateMessageForm" class="message-form">
+                <label for="private-file-input" class="file-upload-btn">📎</label>
+                <input type="file" id="private-file-input" accept="image/*,.pdf,.txt,.docx,.mp4" style="display: none;">
+                <input type="text" id="privateMsgInput" class="message-input" placeholder="Type your private message..." required>
+                <input type="hidden" id="recipientId" value="{{ other_user.id }}">
+                <button type="submit" class="send-btn">Send</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script>
+// Initialize Socket.IO
+const socket = io();
+const currentUserId = {{ current_user.id }};
+const otherUserId = {{ other_user.id }};
+const currentUserName = "{{ current_user.display_name or current_user.username }}";
+const otherUserName = "{{ other_user.display_name or other_user.username }}";
+
+// Join private room when connected
+socket.on('connect', function() {
+    console.log('Connected to server');
+    socket.emit('join_private_room', {
+        'user1_id': currentUserId,
+        'user2_id': otherUserId
+    });
+});
+
+// Handle private message form submission
+document.getElementById('privateMessageForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const messageInput = document.getElementById('privateMsgInput');
+    const message = messageInput.value.trim();
+    
+    if (message) {
+        console.log('Sending private message:', message);
+        
+        // Send via Socket.IO
+        socket.emit('private_message', {
+            'recipient_id': otherUserId,
+            'message': message
+        });
+        
+        messageInput.value = '';
+    }
+});
+
+// Handle receiving private messages
+socket.on('private_message', function(data) {
+    console.log('Received private message:', data);
+    displayPrivateMessage(data);
+});
+
+// Display private message function
+function displayPrivateMessage(data) {
+    const messagesContainer = document.getElementById('privateMessages');
+    const messageDiv = document.createElement('div');
+    const isOwnMessage = data.sender_id === currentUserId;
+    
+    messageDiv.className = `message ${isOwnMessage ? 'private' : ''}`;
+    
+    const avatarLetter = isOwnMessage ? 
+        "{{ current_user.display_name[0].upper() if current_user.display_name else current_user.username[0].upper() }}" :
+        "{{ other_user.display_name[0].upper() if other_user.display_name else other_user.username[0].upper() }}";
+    
+    const authorName = isOwnMessage ? currentUserName : otherUserName;
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar">${avatarLetter}</div>
+        <div class="message-content">
+            <div class="message-header">
+                <span class="message-author">${authorName}</span>
+                <span class="message-time">${new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            </div>
+            <div class="message-text">${data.message}</div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Auto-scroll to bottom on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const messagesContainer = document.getElementById('privateMessages');
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Dark mode toggle
+    const darkModeToggle = document.getElementById('darkModeToggle');
+    
+    // Load saved theme
+    const savedTheme = localStorage.getItem('darkMode');
+    if (savedTheme === 'true') {
+        document.body.classList.add('dark-mode');
+        if (darkModeToggle) darkModeToggle.textContent = '☀️';
+    }
+    
+    // Toggle dark mode
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', function() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            
+            localStorage.setItem('darkMode', isDark);
+            darkModeToggle.textContent = isDark ? '☀️' : '🌙';
+        });
+    }
+});
+
+// Handle Enter key
+document.getElementById('privateMsgInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('privateMessageForm').dispatchEvent(new Event('submit'));
+    }
+});
+
+// Debug logging
+socket.on('connect', () => console.log('Socket connected'));
+socket.on('disconnect', () => console.log('Socket disconnected'));
+socket.on('error', (error) => console.error('Socket error:', error));
+</script>
+{% endblock %}

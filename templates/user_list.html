@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">💬</div>
+            <h1 class="sidebar-title">Chattrix</h1>
+            <p class="sidebar-subtitle">All Users</p>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('index') }}" class="nav-item">
+                <span class="nav-icon">🏠</span> Public Chat
+            </a>
+            <a href="{{ url_for('conversations') }}" class="nav-item">
+                <span class="nav-icon">💬</span> Private Chats
+            </a>
+            <a href="{{ url_for('user_list') }}" class="nav-item active">
+                <span class="nav-icon">👥</span> All Users
+            </a>
+            <a href="{{ url_for('profile') }}" class="nav-item">
+                <span class="nav-icon">👤</span> Profile
+            </a>
+            {% if current_user.is_admin %}
+                <a href="/admin" class="nav-item">
+                    <span class="nav-icon">⚙️</span> Admin
+                </a>
+            {% endif %}
+        </nav>
+        
+        <button class="btn btn-danger btn-block" onclick="window.location.href='/logout'">
+            Logout
+        </button>
+        <button id="darkModeToggle" class="dark-mode-toggle">🌙</button>
+    </div>
+
+    <div class="page-main">
+        <div class="page-header">
+            <h1 class="page-title">All Users</h1>
+            <p class="page-subtitle">Choose a user to start chatting</p>
+        </div>
+        
+        <div class="page-content">
+            {% if users %}
+                <div class="users-grid">
+                    {% for user in users %}
+                        <div class="user-card">
+                            <a href="{{ url_for('private_chat', user_id=user.id, username=user.username) }}" class="user-card-link">
+                                <div class="user-card-avatar">
+                                    {{ user.display_name[0].upper() if user.display_name else user.username[0].upper() }}
+                                </div>
+                                <h3 class="user-card-name">{{ user.display_name or user.username }}</h3>
+                                <p class="user-card-username">@{{ user.username }}</p>
+                                <span class="user-card-action">💬 Start Chat</span>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">👥</div>
+                    <h2 class="empty-state-title">No Users Found</h2>
+                    <p class="empty-state-text">There are no other users to chat with at the moment.</p>
+                    <a href="{{ url_for('index') }}" class="empty-state-action">
+                        🏠 Go to Public Chat
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+{% endblock %}

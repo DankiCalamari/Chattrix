@@ -1,306 +1,90 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="sidebar">
-    <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
-    <h1 class="sidebar-title">Chattrix</h1>
-    <div class="chath2">
-        <h2>Chat Room</h2>
-    </div>
-    <a class="profile-link" href="{{ url_for('profile') }}">Profile Settings</a>
-    <a class="logout" href="{{ url_for('logout') }}">Logout</a>
-    <button id="darkModeToggle">🌙 Dark Mode</button>
-    <ul id="onlineUsers"></ul>
-</div>
-<div class="main-content">
-    <div id="messages"></div>
-        <form id="messageForm">
-        <label for="file-input" class="file-upload-btn">📎</label>
-        <input type="file" id="file-input" accept="image/*,.pdf,.txt,.docx,.mp4" style="display: none;">
-        <input type="text" id="msgInput" placeholder="Type your message..." required>
-        <input type="submit" value="Send">
-    </form>
-    <button id="togglePinnedBtn">Show Pinned Messages</button>
-    <div id="pinnedMessages" style="display:none; margin-top:15px;"></div>
-</div>
-
-
-
-<script>
-// Initialize socket.io
-const socket = io();
-const messageContainer = document.getElementById('messages');
-const pinnedBtn = document.getElementById('togglePinnedBtn');
-const pinnedContainer = document.getElementById('pinnedMessages');
-let pinnedVisible = false;
-const isAdmin = {{ current_user.is_admin|tojson }};
-
-// Notify server when user joins
-socket.emit('user_joined');
-
-socket.on('update_pinned', function() {
-    if (pinnedVisible) {
-        loadPinnedMessages();
-    }
-});
-
-pinnedBtn.onclick = function() {
-    pinnedVisible = !pinnedVisible;
-    if (pinnedVisible) {
-        pinnedBtn.textContent = "Hide Pinned Messages";
-        loadPinnedMessages();
-        pinnedContainer.style.display = "block";
-    } else {
-        pinnedBtn.textContent = "Show Pinned Messages";
-        pinnedContainer.style.display = "none";
-    }
-};
-
-// File upload handling
-document.getElementById('file-input').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        uploadFile(file);
-    }
-});
-
-// File upload handling
-document.getElementById('file-input').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        uploadFile(file);
-    }
-});
-
-function uploadFile(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    fetch('/upload', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            console.log('File uploaded successfully');
-        } else {
-            console.error('Upload failed:', data.error);
-            flash('Upload failed: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Upload error:', error);
-        flash('Upload failed: ' + error.message);
-    });
-}
-
-// Enhanced message rendering for files
-function renderMessage(data) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message';
-    messageDiv.style.marginBottom = '10px';
-    messageDiv.style.padding = '8px';
-    messageDiv.style.borderRadius = '8px';
-    messageDiv.style.background = '#f0f6fb';
-    
-    // Check if message is a file
-    if (data.text.startsWith('[FILE:')) {
-        const fileData = data.text.match(/\[FILE:(.*?):(.*?)\]/);
-        if (fileData) {
-            const [, filename, originalName] = fileData;
-            const fileExtension = filename.split('.').pop().toLowerCase();
-            
-            if (['png', 'jpg', 'jpeg', 'gif'].includes(fileExtension)) {
-                // Render image
-                messageDiv.innerHTML = `
-                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                        <img src="/static/profile_pics/${data.profile_pic}" alt="Profile" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
-                        <strong style="color: #2a7fa5;">${data.display_name}</strong>
-                        <small style="color: #666; margin-left: 10px;">${data.timestamp}</small>
-                    </div>
-                    <div style="margin-left: 40px;">
-                        <img src="/static/uploads/${filename}" alt="${originalName}" style="max-width: 300px; max-height: 300px; border-radius: 8px; cursor: pointer;" onclick="window.open('/static/uploads/${filename}', '_blank')">
-                        <br><small style="color: #666;">📷 ${originalName}</small>
-                    </div>
-                `;
-            } else {
-                // Render file download link
-                messageDiv.innerHTML = `
-                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                        <img src="/static/profile_pics/${data.profile_pic}" alt="Profile" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
-                        <strong style="color: #2a7fa5;">${data.display_name}</strong>
-                        <small style="color: #666; margin-left: 10px;">${data.timestamp}</small>
-                    </div>
-                    <div style="margin-left: 40px;">
-                        📎 <a href="/static/uploads/${filename}" download="${originalName}" style="color: #2a7fa5; text-decoration: none;">${originalName}</a>
-                    </div>
-                `;
-            }
-        }
-    } else {
-        // Regular text message
-        messageDiv.innerHTML = `
-            <div style="display: flex; align-items: center; margin-bottom: 5px;">
-                <img src="/static/profile_pics/${data.profile_pic}" alt="Profile" style="width: 30px; height: 30px; border-radius: 50%; margin-right: 10px;">
-                <strong style="color: #2a7fa5;">${data.display_name}</strong>
-                <small style="color: #666; margin-left: 10px;">${data.timestamp}</small>
+<div class="app-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">💬</div>
+            <h1 class="sidebar-title">Chattrix</h1>
+            <p class="sidebar-subtitle">Public Chat</p>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('index') }}" class="nav-item active">
+                <span class="nav-icon">🏠</span> Public Chat
+            </a>
+            <a href="{{ url_for('conversations') }}" class="nav-item">
+                <span class="nav-icon">💬</span> Private Chats
+            </a>
+            <a href="{{ url_for('user_list') }}" class="nav-item">
+                <span class="nav-icon">👥</span> All Users
+            </a>
+            <a href="{{ url_for('profile') }}" class="nav-item">
+                <span class="nav-icon">👤</span> Profile
+            </a>
+            {% if current_user.is_admin %}
+                <a href="/admin" class="nav-item">
+                    <span class="nav-icon">⚙️</span> Admin
+                </a>
+            {% endif %}
+        </nav>
+        
+        <div class="online-users">
+            <div class="online-users-title">Online Users</div>
+            <div id="onlineUsersList" class="online-users-list">
+                <!-- Online users will be populated here -->
             </div>
-            <div style="margin-left: 40px; color: #21809c;">${data.text}</div>
-        `;
-    }
-    
-    document.getElementById('messages').appendChild(messageDiv);
-    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-}
+        </div>
+        
+        <button class="btn btn-danger btn-block" onclick="window.location.href='/logout'">
+            Logout
+        </button>
+        <button id="darkModeToggle" class="dark-mode-toggle">🌙</button>
+    </div>
 
-// Update the socket listener to use renderMessage
-socket.on('receive_message', function(data) {
-    renderMessage(data);
-});
+    <div class="main-content">
+        <div class="main-header">
+            <h1 class="main-title">Public Chat</h1>
+            <!-- ADD THE PIN MESSAGE BUTTON HERE -->
+            {% if current_user.is_admin %}
+                <div class="main-controls">
+                    <button id="togglePinnedBtn" class="btn btn-secondary">
+                        Show Pinned Messages
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- PINNED MESSAGES SECTION -->
+        {% if current_user.is_admin %}
+            <div id="pinnedMessages" class="pinned-messages" style="display: none;">
+                <div class="pinned-header">
+                    <h3>📌 Pinned Messages</h3>
+                </div>
+                <div class="pinned-content">
+                    <!-- Pinned messages will be loaded here -->
+                </div>
+            </div>
+        {% endif %}
+        
+        <div id="messages" class="messages-container">
+            <!-- Messages will be populated here -->
+        </div>
+        
+        <div class="message-form-container">
+            <form id="messageForm" class="message-form">
+                <label for="file-input" class="file-upload-btn">📎</label>
+                <input type="file" id="file-input" accept="image/*,.pdf,.txt,.docx,.mp4" style="display: none;">
+                <input type="text" id="msgInput" class="message-input" placeholder="Type your message..." required>
+                <button type="submit" class="send-btn">Send</button>
+            </form>
+        </div>
+    </div>
+</div>
 
-// In your loadPinnedMessages function:
-function loadPinnedMessages() {
-    fetch('/pinned_messages')
-        .then(res => res.json())
-        .then(data => {
-            pinnedContainer.innerHTML = '';
-            if (data.length === 0) {
-                pinnedContainer.innerHTML = '<div class="system-message">No pinned messages.</div>';
-                return;
-            }
-            data.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = 'pinned-message';
-                div.innerHTML = `<strong>${msg.display_name}</strong>: ${msg.text} <small>(${msg.timestamp})</small>`;
-                // Only show unpin button for admins
-                if (typeof isAdmin !== "undefined" && isAdmin) {
-                    const unpinBtn = document.createElement('button');
-                    unpinBtn.textContent = 'Unpin';
-                    unpinBtn.onclick = function() {
-                        socket.emit('unpin_message', { message_id: msg.id });
-                    };
-                    div.appendChild(unpinBtn);
-                }
-                pinnedContainer.appendChild(div);
-            });
-        });
-}
-
-// Listen for real-time updates to pinned messages
-socket.on('update_pinned', function() {
-    if (pinnedVisible) {
-        loadPinnedMessages();
-    }
-});
-
-/**
- * Adds a message to the message container.
- * Handles normal, system, and whisper messages.
- */
-function addMessage(data) {
-    const div = document.createElement('div');
-    let profilePic = data.profile_pic ? data.profile_pic : 'default.png';
-    let imgTag = `<img class="chat-profile-pic" src="/static/profile_pics/${profilePic}" alt="Profile" style="width:28px;height:28px;border-radius:50%;margin-right:8px;vertical-align:middle;">`;
-
-    if (data.whisper) {
-        div.classList.add('whisper-message');
-        div.innerHTML = `${imgTag}<em>Whisper from <strong>${data.display_name}</strong> to <strong>${data.to}</strong>: ${data.text} <small>(${data.timestamp})</small></em>`;
-    } else if (data.system) {
-        div.classList.add('system-message');
-        div.innerHTML = `<em>${data.text}</em>`;
-    } else {
-        div.innerHTML = `${imgTag}<strong>${data.display_name}</strong>: ${data.text} <small>(${data.timestamp})</small>`;
-        if (data.id && typeof isAdmin !== "undefined" && isAdmin) {
-            const pinBtn = document.createElement('button');
-            pinBtn.textContent = 'Pin';
-            pinBtn.onclick = function() {
-                socket.emit('pin_message', { message_id: data.id });
-            };
-            div.appendChild(pinBtn);
-        }
-    }
-    messageContainer.appendChild(div);
-    messageContainer.scrollTop = messageContainer.scrollHeight;
-}
-
-
-  
-
-/**
- * Loads previous messages from the server and displays them.
- */
-function loadMessages() {
-    fetch('/messages')
-        .then(res => res.json())
-        .then(data => {
-            messageContainer.innerHTML = '';
-            data.forEach(msg => addMessage(msg));
-            // Scroll to bottom after loading messages
-            messageContainer.scrollTop = messageContainer.scrollHeight;
-        });
-}
-
-/**
- * Handles new incoming messages from the server.
- */
-socket.on('new_message', (data) => {
-    addMessage(data);
-    // Always scroll to bottom when a new message arrives
-    messageContainer.scrollTop = messageContainer.scrollHeight;
-});
-
-/**
- * Handles form submission for sending messages.
- * Supports whisper command: /w username message
- */
-document.getElementById('messageForm').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const input = document.getElementById('msgInput');
-    const value = input.value.trim();
-
-    // Whisper command: /w username message
-    if (value.startsWith('/w ')) {
-        const parts = value.split(' ');
-        const toUsername = parts[1];
-        const message = parts.slice(2).join(' ');
-        socket.emit('whisper', { to: toUsername, text: message });
-    } else {
-        socket.emit('send_message', { text: value });
-    }
-    input.value = '';
-});
-
-
-
-/**
- * Handles incoming whisper messages.
- */
-socket.on('whisper', (data) => {
-    addMessage({ ...data, whisper: true });
-});
-
-/**
- * Updates the online users list in the sidebar.
- */
-socket.on('online_users', function(users) {
-    const userList = document.getElementById('onlineUsers');
-    userList.innerHTML = '';
-    users.forEach(function(user) {
-        let profilePic = user.profile_pic ? user.profile_pic : 'default.png';
-        let imgTag = `<img src="/static/profile_pics/${profilePic}" alt="Profile" style="width:22px;height:22px;border-radius:50%;margin-right:6px;vertical-align:middle;">`;
-        const li = document.createElement('li');
-        li.innerHTML = `${imgTag}${user.display_name}`;
-        userList.appendChild(li);
-    });
-});
-
-
-// Load old messages on page load
-loadMessages();
-
-
-
-
-
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script>
+    // Pass admin status to JavaScript
+    const isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
 </script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}

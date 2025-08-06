@@ -1,62 +1,110 @@
 {% extends "base.html" %}
 {% block content %}
-<!-- Profile Page Wrapper -->
-<div class="profile-page-wrapper">
-    <!-- Sidebar Section -->
+<div class="profile-container">
     <div class="sidebar">
-        <!-- App Logo -->
-        <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
-        <h1 class="sidebar-title">Chattrix</h1>
-        <div class="chath2">
-            <h2>Profile</h2>
+        <div class="sidebar-header">
+            <img src="https://img.icons8.com/?size=100&id=3U2UjBX_nP9w&format=png&color=000000" alt="message icon" class="sidebar-logo">
+            <h1 class="sidebar-title">Chattrix</h1>
+            <p class="sidebar-subtitle">Profile</p>
         </div>
-        <!-- Navigation Links -->
-        <a class="chat-link" href="{{ url_for('index') }}">Back to Chat</a>
-        <a class="logout" href="{{ url_for('logout') }}">Logout</a>
-        <!-- Dark Mode Toggle Button -->
-        <button id="darkModeToggle">🌙 Dark Mode</button>
+        
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('index') }}" class="nav-item">
+                <span class="nav-icon">🏠</span> Public Chat
+            </a>
+            <a href="{{ url_for('conversations') }}" class="nav-item">
+                <span class="nav-icon">💬</span> Private Chats
+            </a>
+            <a href="{{ url_for('user_list') }}" class="nav-item">
+                <span class="nav-icon">👥</span> All Users
+            </a>
+            <a href="{{ url_for('profile') }}" class="nav-item active">
+                <span class="nav-icon">👤</span> Profile
+            </a>
+            {% if current_user.is_admin %}
+                <a href="/admin" class="nav-item">
+                    <span class="nav-icon">⚙️</span> Admin
+                </a>
+            {% endif %}
+        </nav>
+        
+        <button class="btn btn-danger btn-block" onclick="window.location.href='/logout'">
+            Logout
+        </button>
+        <button id="darkModeToggle" class="dark-mode-toggle">🌙</button>
     </div>
 
-    <!-- Profile Settings Section -->
-    <div class="profile-container">
-        <h2>Profile Settings</h2>
-        <form method="POST" enctype="multipart/form-data">
-            <!-- Display Name Field -->
-            <label for="display_name">Display Name:</label>
-            <input type="text" name="display_name" id="display_name" value="{{ user.display_name }}">
-
-            <!-- Password Field -->
-            <label for="password">New Password:</label>
-            <input type="password" name="password" id="password" placeholder="Leave blank to keep current">
-            <!-- Bio Field -->
-            <label for="bio">Bio:</label>
-            <textarea name="bio" id="bio" rows="4" placeholder="Tell us about yourself...">{{ user.bio }}</textarea>
-            <!-- Profile Picture Upload -->
-            <label for="profile_pic">Profile Picture:</label>
-            <input type="file" name="profile_pic" id="profile_pic" accept="image/*">
-
-            <!-- Show Current Profile Picture If Exists -->
-            {% if user.profile_pic %}
-                <img src="{{ url_for('static', filename='profile_pics/' ~ user.profile_pic) }}" alt="Profile Picture">
-            {% endif %}
+    <div class="profile-main">
+        <div class="profile-card">
+            <div class="profile-header">
+                <div class="profile-avatar-container">
+                    {% if current_user.avatar %}
+                        <img src="{{ url_for('static', filename='uploads/' + current_user.avatar) }}" alt="Profile Avatar" class="profile-avatar">
+                    {% else %}
+                        <div class="profile-avatar" style="background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 600;">
+                            {{ current_user.display_name[0].upper() if current_user.display_name else current_user.username[0].upper() }}
+                        </div>
+                    {% endif %}
+                </div>
+                <h1 class="profile-name">{{ current_user.display_name or current_user.username }}</h1>
+                <p class="profile-username">@{{ current_user.username }}</p>
+            </div>
             
-            <!-- Submit Button -->
-            <input type="submit" value="Update Profile">
-        </form>
+            <div class="profile-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <div class="profile-section">
+                    <h2 class="profile-section-title">About</h2>
+                    <div class="profile-bio">
+                        {{ current_user.bio or "No bio added yet." }}
+                    </div>
+                </div>
+                
+                <div class="profile-section">
+                    <h2 class="profile-section-title">Edit Profile</h2>
+                    <form method="POST" enctype="multipart/form-data" class="profile-form">
+                        <div class="profile-form-row">
+                            <div class="form-group">
+                                <label class="form-label">Display Name</label>
+                                <input type="text" name="display_name" class="form-input" 
+                                       value="{{ current_user.display_name or '' }}" 
+                                       placeholder="Your display name">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Bio</label>
+                            <textarea name="bio" class="form-input form-textarea" 
+                                      placeholder="Tell us about yourself...">{{ current_user.bio or '' }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Profile Picture</label>
+                            <div class="file-upload-container">
+                                <input type="file" name="avatar" id="avatar" class="file-upload-input" accept="image/*">
+                                <label for="avatar" class="file-upload-label">
+                                    📷 Choose Photo
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary btn-block">
+                                Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<!-- Dark Mode Script -->
-<script>
-    // Toggle dark mode and save preference to localStorage
-    document.getElementById('darkModeToggle').onclick = function() {
-        document.body.classList.toggle('dark-mode');
-        localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
-    };
-
-    // On page load, set theme from localStorage
-    if (localStorage.getItem('theme') === 'dark') {
-        document.body.classList.add('dark-mode');
-    }
-</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}

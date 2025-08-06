@@ -23,24 +23,15 @@ Current features include public chat, private whispers, online user tracking, pa
 
 - [x] Pinned Messages
 - [x] User profile pages (avatar, bio)
-- [ ] Message search/filter
 - [x] File/image sharing
-- [ ] Emoji/sticker support
-- [ ] Message editing/deletion
-- [ ] Typing indicators
-- [ ] Read receipts
-- [ ] Group chat rooms/channels
+- [x] private messaging
 - [ ] Push notifications
-- [ ] Rate limiting/spam protection
-- [ ] User blocking/muting
 - [ ] Admin/moderator controls (ban/kick)
 - [ ] Chat history export
 - [ ] Two-factor/Social Login
-- [ ] Customizable themes
+- [x] Customizable themes (darkmode/lightmode)
 - [ ] Mobile-friendly design
 - [ ] Invite links for private rooms
-- [ ] Activity logs for admin
-- [ ] Accessibility improvements
 
 ---
 

@@ -1,74 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Chattrix</title>
-    <!-- Main stylesheet -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Chattrix{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Socket.IO client library -->
-    <script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
-    <!-- Google Fonts: Preconnect for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <!-- Google Fonts: Special Gothic Expanded One -->
-    <link href="https://fonts.googleapis.com/css2?family=Special+Gothic+Expanded+One&display=swap" rel="stylesheet">
-    <!-- Google Fonts: Space Mono (regular and bold) -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <!-- Main content block for child templates -->
-
-    
-
     {% block content %}{% endblock %}
-
-    <!-- Dark mode toggle script -->
+    
+    <!-- Dark Mode Toggle - Available on all pages -->
+    <button id="darkModeToggle" class="dark-mode-toggle-global">🌙</button>
+    
+    <!-- Base JavaScript for dark mode -->
     <script>
-
-
-
-    // Wait for DOM to load
-    window.addEventListener('DOMContentLoaded', function() {
-        // Get the dark mode toggle button by its ID
-        const darkModeToggle = document.getElementById('darkModeToggle');
-
-        // Function to enable/disable dark mode
-        function setDarkMode(enabled) {
-            if (enabled) {
-                document.body.classList.add('dark-mode');
-                darkModeToggle.textContent = '☀️ Light Mode';
-            } else {
-                document.body.classList.remove('dark-mode');
-                darkModeToggle.textContent = '🌙 Dark Mode';
+        // Dark mode functionality - available on all pages
+        document.addEventListener('DOMContentLoaded', function() {
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            
+            if (darkModeToggle) {
+                // Load saved theme
+                const savedTheme = localStorage.getItem('darkMode');
+                if (savedTheme === 'true') {
+                    document.body.classList.add('dark-mode');
+                    darkModeToggle.textContent = '☀️';
+                }
+                
+                // Toggle dark mode
+                darkModeToggle.addEventListener('click', function() {
+                    document.body.classList.toggle('dark-mode');
+                    const isDark = document.body.classList.contains('dark-mode');
+                    
+                    // Save preference
+                    localStorage.setItem('darkMode', isDark);
+                    
+                    // Update button text
+                    darkModeToggle.textContent = isDark ? '☀️' : '🌙';
+                });
             }
-        }
-
-        // Read saved dark mode preference from localStorage
-        let darkPref = localStorage.getItem('darkMode') === '1';
-        setDarkMode(darkPref);
-
-        // Toggle dark mode and save preference
-        darkModeToggle.onclick = function() {
-            darkPref = !darkPref;
-            setDarkMode(darkPref);
-            localStorage.setItem('darkMode', darkPref ? '1' : '0');
-        };
-    });
-
+        });
     </script>
-    <!-- Notyf JS for toast notifications -->
-    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
-    <script>
-      var notyf = new Notyf({
-        duration: 3500,
-        position: { x: 'right', y: 'top' }
-      });
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-          notyf.open({ type: '{{ category }}', message: '{{ message }}' });
-        {% endfor %}
-      {% endwith %}
-</script>
+    
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

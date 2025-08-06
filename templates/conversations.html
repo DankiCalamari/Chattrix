@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-container">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">💬</div>
+            <h1 class="sidebar-title">Chattrix</h1>
+            <p class="sidebar-subtitle">Private Chats</p>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('index') }}" class="nav-item">
+                <span class="nav-icon">🏠</span> Public Chat
+            </a>
+            <a href="{{ url_for('conversations') }}" class="nav-item active">
+                <span class="nav-icon">💬</span> Private Chats
+            </a>
+            <a href="{{ url_for('user_list') }}" class="nav-item">
+                <span class="nav-icon">👥</span> All Users
+            </a>
+            <a href="{{ url_for('profile') }}" class="nav-item">
+                <span class="nav-icon">👤</span> Profile
+            </a>
+            {% if current_user.is_admin %}
+                <a href="/admin" class="nav-item">
+                    <span class="nav-icon">⚙️</span> Admin
+                </a>
+            {% endif %}
+        </nav>
+        
+        <button class="btn btn-danger btn-block" onclick="window.location.href='/logout'">
+            Logout
+        </button>
+        <button id="darkModeToggle" class="dark-mode-toggle">🌙</button>
+    </div>
+
+    <div class="page-main">
+        <div class="page-header">
+            <h1 class="page-title">Private Conversations</h1>
+            <p class="page-subtitle">Your private message history</p>
+        </div>
+        
+        <div class="page-content">
+            {% if conversations %}
+                <div class="conversations-list">
+                    {% for conv in conversations %}
+                        {% set other_user = conv.user1 if conv.user1.id != current_user.id else conv.user2 %}
+                        <div class="conversation-item">
+                            <a href="{{ url_for('private_chat', user_id=other_user.id, username=other_user.username) }}" class="conversation-link">
+                                <div class="conversation-avatar">
+                                    {{ other_user.display_name[0].upper() if other_user.display_name else other_user.username[0].upper() }}
+                                </div>
+                                <div class="conversation-info">
+                                    <h3 class="conversation-name">
+                                        {{ other_user.display_name or other_user.username }}
+                                    </h3>
+                                    <p class="conversation-preview">
+                                        {% if conv.messages %}
+                                            {% set last_message = conv.messages[-1] %}
+                                            {{ last_message.content[:50] }}...
+                                        {% else %}
+                                            No messages yet
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="conversation-meta">
+                                    {% if conv.messages %}
+                                        {% set last_message = conv.messages[-1] %}
+                                        <span class="conversation-time">
+                                            {{ last_message.timestamp.strftime('%m/%d %H:%M') }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <h2 class="empty-state-title">No Conversations Yet</h2>
+                    <p class="empty-state-text">Start a private conversation by selecting a user from the user list.</p>
+                    <a href="{{ url_for('user_list') }}" class="empty-state-action">
+                        👥 Browse Users
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+{% endblock %}
