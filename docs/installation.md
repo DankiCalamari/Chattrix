@@ -123,6 +123,10 @@ python app.py
 
 ## ☁️ Cloud Platform Installation
 
+> 💡 **For comprehensive cloud deployment guides** covering 8+ platforms with detailed instructions, see our **[Cloud Deployment Guide](cloud-deployment.md)**.
+
+The following section provides quick installation steps for popular platforms:
+
 ### Heroku Deployment
 
 **Prerequisites:**

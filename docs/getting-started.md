@@ -279,7 +279,9 @@ Now that you have Chattrix running locally:
 
 1. **Explore Features:** Try all the messaging features
 2. **Customize:** Modify the UI and add your own features
-3. **Deploy:** Follow the [Deployment Guide](deployment.md)
+3. **Deploy:** Choose your deployment method:
+   - **[Cloud Deployment](cloud-deployment.md)** - Heroku, Railway, Render, AWS, GCP, Azure
+   - **[Production Deployment](deployment.md)** - Self-hosted VPS/server setup
 4. **Contribute:** Check out the [Contributing Guide](contributing.md)
 
 ## 🤝 Getting Help
@@ -291,7 +293,9 @@ Now that you have Chattrix running locally:
 
 ---
 
-**Ready for production?** Check out the [Production Deployment Guide](deployment.md) next!
+**Ready for production?** Choose your deployment method:
+- **[Cloud Deployment](cloud-deployment.md)** - Easy deployment to Heroku, Railway, Render, and more
+- **[Production Deployment](deployment.md)** - Self-hosted VPS/server setup
 
 ---
 
