@@ -25,7 +25,7 @@ Current features include public chat, private whispers, online user tracking, pa
 - [x] User profile pages (avatar, bio)
 - [x] File/image sharing
 - [x] private messaging
-- [ ] Push notifications
+- [x] Push notifications
 - [ ] Admin/moderator controls (ban/kick)
 - [ ] Chat history export
 - [ ] Two-factor/Social Login
