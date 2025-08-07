@@ -30,7 +30,7 @@ Current features include public chat, private whispers, online user tracking, pa
 - [ ] Chat history export
 - [ ] Two-factor/Social Login
 - [x] Customizable themes (darkmode/lightmode)
-- [ ] Mobile-friendly design
+- [x] Mobile-friendly design
 - [ ] Invite links for private rooms
 
 ---
