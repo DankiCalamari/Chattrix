@@ -25,21 +25,46 @@ class Config:
 class DevelopmentConfig(Config):
     """Development configuration"""
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or 'sqlite:///dev_chattrix.db'
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or 'sqlite:///dev_chattrix.db?check_same_thread=False'
     SESSION_COOKIE_SECURE = False
+    
+    # SQLite-specific options for development to handle threading
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'connect_args': {'check_same_thread': False} if 'sqlite' in (os.environ.get('DEV_DATABASE_URL') or 'sqlite') else {}
+    }
+
+def get_database_uri():
+    """Get database URI, handling postgres:// to postgresql:// conversion"""
+    database_url = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+    
+    if database_url:
+        # Fix Heroku postgres:// URL to postgresql:// for SQLAlchemy compatibility
+        if database_url.startswith('postgres://'):
+            return database_url.replace('postgres://', 'postgresql://', 1)
+        else:
+            return database_url
+    else:
+        # Fallback to SQLite if no PostgreSQL URL provided
+        return 'sqlite:///chattrix_prod.db'
 
 class ProductionConfig(Config):
     """Production configuration"""
     DEBUG = False
     
-    # Use PostgreSQL in production (recommended)
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        os.environ.get('POSTGRES_URL') or \
-        'postgresql://user:password@localhost/chattrix_prod'
+    # This will be set after load_dotenv() is called
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///chattrix_prod.db'  # Temporary fallback
     
-    # If using SQLite in production (not recommended for scale)
-    if not os.environ.get('DATABASE_URL') and not os.environ.get('POSTGRES_URL'):
-        SQLALCHEMY_DATABASE_URI = 'sqlite:///chattrix_prod.db'
+    # PostgreSQL-specific engine options for better connection handling
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_timeout': 20,
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+        'connect_args': {
+            'sslmode': 'require',
+            'connect_timeout': 10
+        }
+    }
     
     # Security settings for production
     SESSION_COOKIE_SECURE = True  # Requires HTTPS

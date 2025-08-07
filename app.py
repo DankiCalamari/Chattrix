@@ -30,6 +30,11 @@ def create_app(config_name=None):
     
     app.config.from_object(config[config_name])
     
+    # Override database URI for production to use environment variables
+    if config_name == 'production':
+        from config import get_database_uri
+        app.config['SQLALCHEMY_DATABASE_URI'] = get_database_uri()
+    
     return app
 
 # Create app instance
@@ -79,7 +84,7 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     display_name = db.Column(db.String(50), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(80), nullable=False)
+    password = db.Column(db.String(255), nullable=False)  # Increased from 80 to 255 for password hashes
     is_admin = db.Column(db.Boolean, default=False)
     profile_pic = db.Column(db.String(120), default='default.jpg')
     bio = db.Column(db.String(300), default='')
