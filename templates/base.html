@@ -43,5 +43,132 @@
     </script>
     
     {% block extra_scripts %}{% endblock %}
+
+    <!-- Add before closing </body> tag -->
+<script>
+// VAPID public key - MUST match your backend
+<script>
+// Setup web push
+async function setupWebPush() {
+    console.log('🔄 Starting setupWebPush function...');
+    
+    // Check basic support
+    if (!('serviceWorker' in navigator)) {
+        console.error('❌ Service Worker not supported');
+        return;
+    }
+    
+    if (!('PushManager' in window)) {
+        console.error('❌ Push Manager not supported');
+        return;
+    }
+    
+    if (!('Notification' in window)) {
+        console.error('❌ Notifications not supported');
+        return;
+    }
+    
+    console.log('✅ All push notification APIs supported');
+    
+    try {
+        console.log('🔄 Registering service worker...');
+        const registration = await navigator.serviceWorker.register('/static/sw.js');
+        console.log('✅ Service worker registered:', registration);
+        
+        await navigator.serviceWorker.ready;
+        console.log('✅ Service worker ready');
+        
+        // Request notification permission
+        console.log('🔔 Requesting notification permission...');
+        const permission = await Notification.requestPermission();
+        console.log('🔔 Notification permission result:', permission);
+        
+        if (permission !== 'granted') {
+            console.warn('⚠️ Notification permission not granted:', permission);
+            return;
+        }
+        
+        // Get VAPID public key from server
+        console.log('🔑 Fetching VAPID public key...');
+        const vapidResponse = await fetch('/vapid-public-key');
+        console.log('🔑 VAPID response status:', vapidResponse.status);
+        
+        if (!vapidResponse.ok) {
+            console.error('❌ Failed to fetch VAPID key:', vapidResponse.status);
+            return;
+        }
+        
+        const vapidData = await vapidResponse.json();
+        const publicKey = vapidData.publicKey;
+        console.log('🔑 Got VAPID public key:', publicKey);
+        
+        // Subscribe to push notifications
+        console.log('📝 Creating push subscription...');
+        const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+        
+        console.log('📝 Push subscription created:', subscription);
+        console.log('📝 Subscription endpoint:', subscription.endpoint);
+        
+        // Send subscription to server
+        console.log('💾 Sending subscription to server...');
+        const response = await fetch('/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(subscription)
+        });
+        
+        console.log('💾 Subscription response status:', response.status);
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log('💾 Subscription response:', result);
+            
+            if (result.success) {
+                console.log('✅ Web push notifications enabled!');
+                
+                // Test notification
+                console.log('🧪 Showing test notification...');
+                new Notification('Chattrix Notifications Enabled', {
+                    body: 'You will now receive push notifications for new messages!',
+                    icon: '/static/profile_pics/default.jpg'
+                });
+            } else {
+                console.error('❌ Server error saving subscription:', result.error);
+            }
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Failed to save subscription:', response.status, errorText);
+        }
+    } catch (error) {
+        console.error('❌ Error setting up notifications:', error);
+        console.error('❌ Error stack:', error.stack);
+    }
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// Setup when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    {% if current_user.is_authenticated %}
+    setupWebPush();
+    {% endif %}
+});
+</script>
 </body>
 </html>

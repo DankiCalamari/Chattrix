@@ -50,6 +50,9 @@
                     <button id="togglePinnedBtn" class="btn btn-secondary">
                         Show Pinned Messages
                     </button>
+                    <button id="testPushBtn" class="btn btn-info">
+                        Test Push Notification
+                    </button>
                 </div>
             {% endif %}
         </div>
@@ -83,8 +86,56 @@
 
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 <script>
-    // Pass admin status to JavaScript
-    const isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
+    // Pass user data to JavaScript
+    window.currentUserId = {{ current_user.id }};
+    window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
+    
+    // Toggle pinned messages visibility
+    document.addEventListener('DOMContentLoaded', function() {
+        const toggleBtn = document.getElementById('togglePinnedBtn');
+        const pinnedMessages = document.getElementById('pinnedMessages');
+        
+        if (toggleBtn && pinnedMessages) {
+            toggleBtn.addEventListener('click', function() {
+                const isVisible = pinnedMessages.style.display !== 'none';
+                pinnedMessages.style.display = isVisible ? 'none' : 'block';
+                toggleBtn.textContent = isVisible ? 'Show Pinned Messages' : 'Hide Pinned Messages';
+            });
+        }
+        
+        // Test push notification button
+        const testPushBtn = document.getElementById('testPushBtn');
+        if (testPushBtn) {
+            testPushBtn.addEventListener('click', async function() {
+                console.log('🧪 Testing push notification...');
+                
+                // First try a simple browser notification
+                if ('Notification' in window) {
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                        new Notification('Test Notification', {
+                            body: 'This is a test notification from Chattrix!',
+                            icon: '/static/profile_pics/default.jpg'
+                        });
+                        console.log('✅ Browser notification sent');
+                    } else {
+                        console.warn('⚠️ Notification permission not granted');
+                    }
+                } else {
+                    console.error('❌ Notifications not supported');
+                }
+                
+                // Also try server-side push notification
+                try {
+                    const response = await fetch(`/test-push/${window.currentUserId}`);
+                    const result = await response.json();
+                    console.log('🧪 Server push test result:', result);
+                } catch (error) {
+                    console.error('❌ Error testing server push:', error);
+                }
+            });
+        }
+    });
 </script>
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}

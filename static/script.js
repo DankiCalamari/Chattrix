@@ -1,343 +1,335 @@
+// Initialize Socket.IO
 const socket = io();
 
-// Set user location and join notification room
-socket.on('connect', function() {
-    console.log('Connected to server');
-    socket.emit('user_location', { location: 'public_chat' });
-    socket.emit('join_user_room');
+// Get current user ID from the page context
+let currentUserId = null;
+let isAdmin = false;
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Try to get currentUserId from different sources
+    const userIdElement = document.querySelector('[data-user-id]');
+    if (userIdElement) {
+        currentUserId = parseInt(userIdElement.getAttribute('data-user-id'));
+    } else if (window.currentUserId) {
+        currentUserId = window.currentUserId;
+    }
+    
+    // Get admin status
+    if (window.isAdmin) {
+        isAdmin = window.isAdmin;
+    }
+    
+    console.log('Current user ID:', currentUserId);
+    console.log('Is admin:', isAdmin);
+    
+    // Initialize public chat if on main chat page
+    initializePublicChat();
+    
+    // Initialize private chat if on private chat page
+    initializePrivateChat();
+    
+    // Load messages on public chat page
+    if (document.getElementById('messages')) {
+        loadPublicMessages();
+        if (isAdmin) {
+            loadPinnedMessages();
+        }
+    }
+    
+    // Set up dark mode toggle
+    setupDarkMode();
 });
 
-// Receive public messages
+// Initialize public chat functionality
+function initializePublicChat() {
+    const messageForm = document.getElementById('messageForm');
+    const messageInput = document.getElementById('msgInput');
+    
+    if (messageForm && messageInput) {
+        messageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const message = messageInput.value.trim();
+            if (message) {
+                console.log('Sending public message:', message);
+                
+                socket.emit('send_message', {
+                    text: message
+                });
+                
+                messageInput.value = '';
+            }
+        });
+        
+        // Handle Enter key for public messages
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                messageForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    }
+}
+
+// Initialize private chat functionality  
+function initializePrivateChat() {
+    const privateMessageForm = document.getElementById('privateMessageForm');
+    const privateMessageInput = document.getElementById('privateMsgInput');
+    
+    if (privateMessageForm && privateMessageInput) {
+        privateMessageForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const message = privateMessageInput.value.trim();
+            const recipientId = document.getElementById('recipientId').value;
+            
+            if (message && recipientId) {
+                console.log('Sending private message:', { recipient_id: recipientId, message: message });
+                
+                socket.emit('private_message', {
+                    recipient_id: parseInt(recipientId),
+                    message: message
+                });
+                
+                privateMessageInput.value = '';
+            }
+        });
+        
+        // Handle Enter key for private messages
+        privateMessageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                privateMessageForm.dispatchEvent(new Event('submit'));
+            }
+        });
+    }
+}
+
+// Socket event handlers
+socket.on('connect', function() {
+    console.log('Connected to server');
+    
+    // Join user's personal room for notifications
+    socket.emit('join_user_room');
+    
+    // Set user location
+    if (window.location.pathname === '/') {
+        socket.emit('user_location', { location: 'public_chat' });
+    } else if (window.location.pathname.startsWith('/chat/')) {
+        socket.emit('user_location', { location: 'private_chat' });
+    }
+});
+
+// Handle receiving public messages
 socket.on('receive_message', function(data) {
-    console.log('Received message:', data);
-    displayMessage(data);
+    console.log('Received public message:', data);
+    displayPublicMessage(data);
+});
+
+// Handle receiving private messages
+socket.on('receive_private_message', function(data) {
+    console.log('Received private message:', data);
+    displayPrivateMessage(data);
+});
+
+// Handle online users updates
+socket.on('online_users', function(users) {
+    updateOnlineUsers(users);
 });
 
 // Handle notifications
 socket.on('notification', function(data) {
+    console.log('Received notification:', data);
     showNotification(data);
 });
 
-function displayMessage(data) {
+// Display public message function
+function displayPublicMessage(data) {
     const messagesContainer = document.getElementById('messages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message';
-    messageDiv.setAttribute('data-message-id', data.id);
+    if (!messagesContainer) return;
     
-    const avatarLetter = data.display_name ? data.display_name[0].toUpperCase() : 'U';
+    const messageDiv = document.createElement('div');
+    const isOwnMessage = data.sender_id == currentUserId;
+    
+    messageDiv.className = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
+    
+    // Handle profile picture
+    let avatarHtml = '';
+    if (data.profile_pic && data.profile_pic !== 'default.jpg') {
+        avatarHtml = `<img src="/static/profile_pics/${data.profile_pic}" alt="Profile" class="message-avatar">`;
+    } else {
+        const initial = (data.display_name || data.username)[0].toUpperCase();
+        avatarHtml = `<div class="message-avatar avatar-fallback">${initial}</div>`;
+    }
+    
+    // Pin button for admins
+    let pinButton = '';
+    if (isAdmin && !data.is_private) {
+        pinButton = `<button class="pin-btn" onclick="pinMessage(${data.id})" title="Pin message">📌</button>`;
+    }
     
     messageDiv.innerHTML = `
-        <div class="message-avatar">${avatarLetter}</div>
+        ${avatarHtml}
         <div class="message-content">
             <div class="message-header">
-                <span class="message-author">${data.display_name || data.username}</span>
-                <span class="message-time">${new Date(data.timestamp).toLocaleTimeString()}</span>
+                <span class="message-sender">${data.display_name || data.username}</span>
+                <span class="message-time">${new Date(data.timestamp).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+                ${pinButton}
             </div>
             <div class="message-text">${data.text}</div>
         </div>
     `;
     
-    // Add pin button for admins
-    if (typeof isAdmin !== 'undefined' && isAdmin && data.id) {
-        const pinBtn = document.createElement('button');
-        pinBtn.className = 'pin-btn';
-        pinBtn.innerHTML = '📌';
-        pinBtn.title = 'Pin message';
-        pinBtn.onclick = function(e) {
-            e.stopPropagation();
-            socket.emit('pin_message', { message_id: data.id });
-            console.log('Pinning message:', data.id);
-        };
-        messageDiv.appendChild(pinBtn);
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function displayPrivateMessage(data) {
+    const messagesContainer = document.getElementById('privateMessages');
+    if (!messagesContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    const isOwnMessage = data.sender_id == currentUserId;
+    
+    messageDiv.className = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
+    
+    // Handle profile picture
+    let avatarHtml = '';
+    if (data.profile_pic && data.profile_pic !== 'default.jpg') {
+        avatarHtml = `<img src="/static/profile_pics/${data.profile_pic}" alt="Profile" class="message-avatar">`;
+    } else {
+        const initial = (data.display_name || data.username)[0].toUpperCase();
+        avatarHtml = `<div class="message-avatar avatar-fallback">${initial}</div>`;
     }
+    
+    messageDiv.innerHTML = `
+        ${avatarHtml}
+        <div class="message-content">
+            <div class="message-header">
+                <span class="message-sender">${data.display_name || data.username}</span>
+                <span class="message-time">${new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+            </div>
+            <div class="message-text">${data.text || data.message}</div>
+        </div>
+    `;
     
     messagesContainer.appendChild(messageDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
+// Load public messages
+function loadPublicMessages() {
+    fetch('/messages')
+        .then(response => response.json())
+        .then(messages => {
+            const messagesContainer = document.getElementById('messages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+                messages.forEach(displayPublicMessage);
+            }
+        })
+        .catch(error => console.error('Error loading messages:', error));
+}
 
-socket.on('update_pinned', function() {
-    console.log('Pinned messages updated');
-    const pinnedMessages = document.getElementById('pinnedMessages');
-    if (pinnedMessages && pinnedMessages.style.display !== 'none') {
-        loadPinnedMessages();
-    }
-});
-
-socket.on('update_unpinned', function() {
-    console.log('Message unpinned, refreshing pinned messages');
-    const pinnedMessages = document.getElementById('pinnedMessages');
-    if (pinnedMessages && pinnedMessages.style.display !== 'none') {
-        loadPinnedMessages();
-    }
-});
-
-// Handle online users
-socket.on('online_users', function(users) {
-    const onlineUsersList = document.getElementById('onlineUsersList');
-    if (onlineUsersList) {
-        onlineUsersList.innerHTML = '';
-        
-        users.forEach(user => {
-            const userDiv = document.createElement('div');
-            userDiv.className = 'online-user';
-            userDiv.innerHTML = `
-                <div class="user-avatar">${user.display_name[0].toUpperCase()}</div>
-                <span class="user-name">${user.display_name}</span>
-            `;
-            onlineUsersList.appendChild(userDiv);
-        });
-    }
-});
-
+// Load pinned messages
 function loadPinnedMessages() {
     fetch('/pinned_messages')
         .then(response => response.json())
         .then(messages => {
-            const pinnedContent = document.querySelector('.pinned-content');
-            if (pinnedContent) {
-                pinnedContent.innerHTML = '';
-                
+            const pinnedContainer = document.querySelector('#pinnedMessages .pinned-content');
+            if (pinnedContainer) {
+                pinnedContainer.innerHTML = '';
                 messages.forEach(message => {
                     const messageDiv = document.createElement('div');
                     messageDiv.className = 'pinned-message';
-                    messageDiv.setAttribute('data-message-id', message.id);
-                    
                     messageDiv.innerHTML = `
-                        <div class="message-content">
-                            <div class="message-header">
-                                <span class="message-author">${message.display_name}</span>
-                                <span class="message-time">${new Date(message.timestamp).toLocaleTimeString()}</span>
-                            </div>
-                            <div class="message-text">${message.text}</div>
+                        <div class="pinned-message-content">
+                            <strong>${message.display_name}</strong>: ${message.text}
+                            <button class="unpin-btn" onclick="unpinMessage(${message.id})">🗑️</button>
                         </div>
                     `;
-                    
-                    // Add unpin button for admins
-                    if (typeof isAdmin !== 'undefined' && isAdmin && message.id) {
-                        const unpinBtn = document.createElement('button');
-                        unpinBtn.className = 'unpin-btn';
-                        unpinBtn.innerHTML = '📌❌';
-                        unpinBtn.title = 'Unpin message';
-                        unpinBtn.onclick = function(e) {
-                            e.stopPropagation();
-                            socket.emit('unpin_message', { message_id: message.id });
-                            console.log('Unpinning message:', message.id);
-                        };
-                        messageDiv.appendChild(unpinBtn);
-                    }
-                    
-                    pinnedContent.appendChild(messageDiv);
+                    pinnedContainer.appendChild(messageDiv);
                 });
             }
         })
         .catch(error => console.error('Error loading pinned messages:', error));
 }
 
-// ===========================
-// NOTIFICATION SYSTEM
-// ===========================
-
-function showNotification(data) {
-    console.log('Notification:', data);
+// Update online users
+function updateOnlineUsers(users) {
+    const onlineUsersList = document.getElementById('onlineUsersList');
+    if (!onlineUsersList) return;
     
-    // Request permission first time
-    if (Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
-    
-    // Show browser notification if permission granted
-    if (Notification.permission === 'granted') {
-        const notification = new Notification(data.title, {
-            body: data.message,
-            icon: '/static/favicon.ico',
-            badge: '/static/favicon.ico'
-        });
-        
-        // Click to go to chat
-        notification.onclick = function() {
-            window.focus();
-            window.location.href = data.chat_url;
-            notification.close();
-        };
-        
-        // Auto close after 5 seconds
-        setTimeout(() => notification.close(), 5000);
-    }
-    
-    // Show in-app notification
-    showInAppNotification(data);
-}
-
-function showInAppNotification(data) {
-    // Get or create notification container
-    let container = document.getElementById('notificationContainer');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'notificationContainer';
-        container.className = 'notification-container';
-        document.body.appendChild(container);
-    }
-    
-    const notification = document.createElement('div');
-    notification.className = `notification ${data.type}`;
-    
-    notification.innerHTML = `
-        <div class="notification-content">
-            <div class="notification-title">${data.title}</div>
-            <div class="notification-message">${data.message}</div>
-        </div>
-        <button class="notification-close" onclick="this.parentElement.remove()">×</button>
-    `;
-    
-    // Click to go to chat (except close button)
-    notification.addEventListener('click', function(e) {
-        if (!e.target.classList.contains('notification-close')) {
-            window.location.href = data.chat_url;
-        }
+    onlineUsersList.innerHTML = '';
+    users.forEach(user => {
+        const userDiv = document.createElement('div');
+        userDiv.className = 'online-user';
+        userDiv.innerHTML = `
+            <div class="user-avatar">${(user.display_name || 'U')[0].toUpperCase()}</div>
+            <span class="user-name">${user.display_name || 'Unknown User'}</span>
+        `;
+        onlineUsersList.appendChild(userDiv);
     });
-    
-    container.appendChild(notification);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, 5000);
-    
-    // Add slide-in animation
-    setTimeout(() => notification.classList.add('show'), 100);
 }
 
-// ===========================
-// DOM CONTENT LOADED - SINGLE EVENT HANDLER
-// ===========================
+// Show notification
+function showNotification(data) {
+    // You can implement browser notifications here
+    console.log('Notification:', data);
+}
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Request notification permission
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(function (permission) {
-            if (permission === 'granted') {
-                console.log('Notifications enabled');
-            } else {
-                console.log('Notifications denied');
-            }
-        });
-    }
+// Pin message function
+function pinMessage(messageId) {
+    if (!isAdmin) return;
     
-    // Load messages from server
-    fetch('/messages')
-        .then(response => response.json())
-        .then(messages => {
-            messages.forEach(message => {
-                displayMessage(message);
-            });
-        })
-        .catch(error => console.error('Error loading messages:', error));
+    socket.emit('pin_message', { message_id: messageId });
+    console.log('Pinning message:', messageId);
+}
+
+// Unpin message function
+function unpinMessage(messageId) {
+    if (!isAdmin) return;
     
-    // Dark mode toggle
+    socket.emit('unpin_message', { message_id: messageId });
+    console.log('Unpinning message:', messageId);
+}
+
+// Setup dark mode toggle
+function setupDarkMode() {
     const darkModeToggle = document.getElementById('darkModeToggle');
-    if (darkModeToggle) {
-        // Load saved theme
-        const savedTheme = localStorage.getItem('darkMode');
-        if (savedTheme === 'true') {
-            document.body.classList.add('dark-mode');
-            darkModeToggle.textContent = '☀️';
-        }
+    if (!darkModeToggle) return;
+    
+    // Load saved theme
+    const savedTheme = localStorage.getItem('darkMode');
+    if (savedTheme === 'true') {
+        document.body.classList.add('dark-mode');
+        darkModeToggle.textContent = '☀️';
+    }
+    
+    // Toggle dark mode
+    darkModeToggle.addEventListener('click', function() {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
         
-        // Toggle dark mode
-        darkModeToggle.addEventListener('click', function() {
-            document.body.classList.toggle('dark-mode');
-            const isDark = document.body.classList.contains('dark-mode');
-            
-            localStorage.setItem('darkMode', isDark);
-            darkModeToggle.textContent = isDark ? '☀️' : '🌙';
-        });
-    }
-    
-    // Message form submission
-    const messageForm = document.getElementById('messageForm');
-    if (messageForm) {
-        messageForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const messageInput = document.getElementById('msgInput');
-            if (messageInput) {
-                const message = messageInput.value.trim();
-                if (message) {
-                    console.log('Sending public message:', message);
-                    socket.emit('send_message', { 'text': message });
-                    messageInput.value = '';
-                }
-            }
-        });
-    }
-    
-    // Enter key support
-    const msgInput = document.getElementById('msgInput');
-    if (msgInput) {
-        msgInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const form = document.getElementById('messageForm');
-                if (form) {
-                    form.dispatchEvent(new Event('submit'));
-                }
-            }
-        });
-    }
-    
-    // File upload handling
-    const fileInput = document.getElementById('file-input');
-    if (fileInput) {
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('File uploaded successfully');
-                    } else {
-                        console.error('Upload failed:', data.error);
-                    }
-                })
-                .catch(error => console.error('Upload error:', error));
-            }
-        });
-    }
-    
-    // Pinned messages toggle
-    const togglePinnedBtn = document.getElementById('togglePinnedBtn');
-    if (togglePinnedBtn) {
-        togglePinnedBtn.addEventListener('click', function() {
-            const pinnedMessages = document.getElementById('pinnedMessages');
-            if (pinnedMessages) {
-                const isVisible = pinnedMessages.style.display !== 'none';
-                
-                if (isVisible) {
-                    pinnedMessages.style.display = 'none';
-                    this.textContent = 'Show Pinned Messages';
-                } else {
-                    pinnedMessages.style.display = 'block';
-                    this.textContent = 'Hide Pinned Messages';
-                    loadPinnedMessages();
-                }
-            }
-        });
+        localStorage.setItem('darkMode', isDark);
+        darkModeToggle.textContent = isDark ? '☀️' : '🌙';
+    });
+}
+
+// Handle pinned messages updates
+socket.on('update_pinned', function() {
+    if (isAdmin) {
+        loadPinnedMessages();
     }
 });
 
-// ===========================
-// ERROR HANDLING & DEBUG
-// ===========================
+socket.on('update_unpinned', function() {
+    if (isAdmin) {
+        loadPinnedMessages();
+    }
+});
 
-socket.on('connect', () => console.log('✅ Socket connected'));
-socket.on('disconnect', () => console.log('❌ Socket disconnected'));
-socket.on('error', (error) => console.error('🚨 Socket error:', error));
+// Debug logging
+socket.on('disconnect', () => console.log('Socket disconnected'));
+socket.on('error', (error) => console.error('Socket error:', error));

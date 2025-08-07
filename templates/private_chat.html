@@ -107,6 +107,10 @@ const otherUserId = {{ other_user.id }};
 const currentUserName = "{{ current_user.display_name or current_user.username }}";
 const otherUserName = "{{ other_user.display_name or other_user.username }}";
 
+// Also set global variables for the main script
+window.currentUserId = {{ current_user.id }};
+window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
+
 // Join private room when connected
 socket.on('connect', function() {
     console.log('Connected to server');
@@ -114,6 +118,9 @@ socket.on('connect', function() {
         'user1_id': currentUserId,
         'user2_id': otherUserId
     });
+    
+    // Set user location
+    socket.emit('user_location', { location: 'private_chat' });
 });
 
 // Handle private message form submission
@@ -135,8 +142,8 @@ document.getElementById('privateMessageForm').addEventListener('submit', functio
     }
 });
 
-// Handle receiving private messages
-socket.on('private_message', function(data) {
+// Handle receiving private messages - listen for the correct event
+socket.on('receive_private_message', function(data) {
     console.log('Received private message:', data);
     displayPrivateMessage(data);
 });
@@ -162,7 +169,7 @@ function displayPrivateMessage(data) {
                 <span class="message-author">${authorName}</span>
                 <span class="message-time">${new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
-            <div class="message-text">${data.message}</div>
+            <div class="message-text">${data.message || data.text}</div>
         </div>
     `;
     

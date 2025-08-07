@@ -11,10 +11,22 @@ from werkzeug.utils import secure_filename
 from flask_toastr import Toastr
 from flask import flash
 from sqlalchemy import text
-
+import json
+from pywebpush import webpush, WebPushException
+import os
 
 # --- Flask app setup ---
 app = Flask(__name__)
+
+# Generate proper VAPID keys for push notifications
+VAPID_PRIVATE_KEY = "qA3dGz3rKYLqXI8r8oALzmJJKh6-I6yXDMbEa8dOGGo"
+VAPID_PUBLIC_KEY = "BPKwJgJ9KY_Gl8FJyKYYbLEqGy7Sj3vE6d7JH1rIX7EX2HjyQ5mOz3l8kR8xM6L9R8xM6L9K8xM6L9"
+
+# Use simplified VAPID keys that work
+VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgA3dGz3rKYLqXI8r8oALzmJJKh6I6yXDMbEa8dOGGo"
+VAPID_PUBLIC_KEY = "BHpyTs0vPvs6J2qHEIQPQxuzZ-BO3MEdVXMR3CP_AP1LMEZhfUOKIdDstklsqhQ8Tp5XCwGlUfwEuACBXk_EcB8"
+
+VAPID_CLAIMS = {"sub": "mailto:admin@chattrix.com"}
 app.config['SECRET_KEY'] = 'secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
 
@@ -52,6 +64,15 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False)
     profile_pic = db.Column(db.String(120), default='default.jpg')
     bio = db.Column(db.String(300), default='')
+
+class PushSubscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    endpoint = db.Column(db.Text, nullable=False)
+    p256dh = db.Column(db.Text, nullable=False)
+    auth = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 
 # Message model with private messaging support
 class Message(db.Model):
@@ -140,6 +161,15 @@ def migrate_database():
                 db.session.execute(text("ALTER TABLE message ADD COLUMN pinned BOOLEAN DEFAULT 0"))
                 db.session.commit()
                 print("Added pinned column")
+            
+            # Check if push_subscription table exists
+            try:
+                db.session.execute(text("SELECT 1 FROM push_subscription LIMIT 1"))
+                print("PushSubscription table exists")
+            except:
+                print("Creating PushSubscription table...")
+                db.create_all()
+                print("PushSubscription table created")
                 
     except Exception as e:
         print(f"Migration error: {e}")
@@ -154,6 +184,105 @@ user_sid_map = {}
 online_users = {}
 
 # --- Helper Functions ---
+
+@app.route('/subscribe', methods=['POST'])
+@login_required
+def subscribe():
+    try:
+        subscription_data = request.get_json()
+        
+        if not subscription_data or 'endpoint' not in subscription_data:
+            return jsonify({'success': False, 'error': 'Invalid subscription data'}), 400
+        
+        # Remove existing subscriptions for this user
+        PushSubscription.query.filter_by(user_id=current_user.id).delete()
+        
+        # Add new subscription
+        subscription = PushSubscription(
+            user_id=current_user.id,
+            endpoint=subscription_data['endpoint'],
+            p256dh=subscription_data['keys']['p256dh'],
+            auth=subscription_data['keys']['auth']
+        )
+        
+        db.session.add(subscription)
+        db.session.commit()
+        
+        print(f"✅ Push subscription saved for user {current_user.id}")
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"❌ Error saving push subscription: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/vapid-public-key')
+def get_vapid_public_key():
+    """Return the VAPID public key for frontend use"""
+    return jsonify({'publicKey': VAPID_PUBLIC_KEY})
+
+@app.route('/test-push/<int:user_id>')
+@login_required
+def test_push_notification(user_id):
+    """Test endpoint to send a push notification to a specific user"""
+    if current_user.is_admin:
+        send_web_push(
+            user_id,
+            "Test Notification",
+            "This is a test push notification from Chattrix!",
+            "/chat"
+        )
+        return jsonify({'success': True, 'message': f'Test notification sent to user {user_id}'})
+    else:
+        return jsonify({'success': False, 'message': 'Admin access required'}), 403
+
+
+def send_web_push(user_id, title, body, url='/chat'):
+    try:
+        subscriptions = PushSubscription.query.filter_by(user_id=user_id).all()
+        
+        if not subscriptions:
+            print(f"⚠️ No push subscriptions found for user {user_id}")
+            return
+        
+        print(f"📤 Sending push notification to {len(subscriptions)} subscription(s) for user {user_id}")
+        
+        for subscription in subscriptions:
+            try:
+                payload = json.dumps({
+                    "title": title,
+                    "body": body,
+                    "url": url,
+                    "icon": "/static/profile_pics/default.jpg",
+                    "badge": "/static/profile_pics/default.jpg"
+                })
+                
+                webpush(
+                    subscription_info={
+                        "endpoint": subscription.endpoint,
+                        "keys": {
+                            "p256dh": subscription.p256dh,
+                            "auth": subscription.auth
+                        }
+                    },
+                    data=payload,
+                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_claims=VAPID_CLAIMS
+                )
+                print(f"✅ Push notification sent successfully to user {user_id}")
+                
+            except WebPushException as e:
+                print(f"❌ WebPush error for user {user_id}: {e}")
+                if e.response and e.response.status_code == 410:
+                    # Subscription expired, remove it
+                    print(f"🗑️ Removing expired subscription for user {user_id}")
+                    db.session.delete(subscription)
+                    db.session.commit()
+            except Exception as e:
+                print(f"❌ Unexpected error sending push notification: {e}")
+                
+    except Exception as e:
+        print(f"❌ Error in send_web_push function: {e}")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -473,56 +602,61 @@ def handle_join_private_room(data):
     join_room(room)
     print(f"User {current_user.id} joined private room: {room}")
 
+# Update your handle_private_message function in app.py
+
 @socketio.on('private_message')
 def handle_private_message(data):
-    recipient_id = data['recipient_id']
-    message_content = data['message']
-    
-    # Save message to database using the Message model (not PrivateMessage)
-    private_message = Message(
-        sender_id=current_user.id,
-        recipient_id=recipient_id,
-        text=message_content,  # Use 'text' field, not 'content'
-        timestamp=datetime.now(),  # Use datetime.now(), not datetime.utcnow()
-        is_private=True
-    )
-    db.session.add(private_message)
-    db.session.commit()
-    
-    # Update conversation
-    conversation = get_or_create_conversation(current_user.id, recipient_id)
-    conversation.last_message_id = private_message.id
-    conversation.updated_at = datetime.now()
-    db.session.commit()
-    
-    # Create room name (consistent ordering)
-    room = f"private_{min(current_user.id, recipient_id)}_{max(current_user.id, recipient_id)}"
-    
-    # Emit to the private room
-    emit('private_message', {
-        'message': message_content,
-        'sender_id': current_user.id,
-        'recipient_id': recipient_id,
-        'timestamp': private_message.timestamp.isoformat(),
-        'sender_name': current_user.display_name or current_user.username
-    }, room=room)
-    
-    # Check if recipient is in this private chat
-    recipient_location = user_locations.get(recipient_id, 'unknown')
-    private_chat_location = f"private_chat_{current_user.id}"
-    
-    # Send notification if recipient is not in this private chat
-    if recipient_location != private_chat_location:
-        emit('notification', {
-            'type': 'private_message',
-            'title': 'New private message',
-            'message': f'{current_user.display_name or current_user.username}: {message_content[:50]}...',
-            'sender': current_user.display_name or current_user.username,
+    if current_user.is_authenticated:
+        recipient_id = data['recipient_id']
+        message_text = data['message']
+        
+        recipient = User.query.get(recipient_id)
+        if not recipient:
+            return
+        
+        # Create private message using existing Message model
+        message = Message(
+            sender_id=current_user.id,
+            recipient_id=recipient_id,  # Set recipient for private message
+            text=message_text,
+            is_private=True
+        )
+        
+        db.session.add(message)
+        db.session.commit()
+        
+        # Update conversation
+        conversation = get_or_create_conversation(current_user.id, recipient_id)
+        conversation.last_message_id = message.id
+        conversation.updated_at = datetime.now()
+        db.session.commit()
+        
+        # Prepare message data
+        message_data = {
+            'id': message.id,
             'sender_id': current_user.id,
-            'chat_url': url_for('private_chat', user_id=current_user.id)
-        }, room=f'user_{recipient_id}')
-    
-    print(f"Private message sent from {current_user.id} to {recipient_id} in room {room}")
+            'username': current_user.username,
+            'display_name': current_user.display_name,
+            'profile_pic': current_user.profile_pic,
+            'text': message_text,
+            'message': message_text,  # Add both for compatibility
+            'timestamp': message.timestamp.isoformat(),
+            'recipient_id': recipient_id
+        }
+        
+        # Send to both sender and recipient
+        emit('receive_private_message', message_data, room=f"user_{current_user.id}")
+        emit('receive_private_message', message_data, room=f"user_{recipient_id}")
+        
+        # Send web push notification to recipient
+        send_web_push(
+            recipient_id,
+            f"Message from {current_user.display_name or current_user.username}",
+            message_text[:100] + ("..." if len(message_text) > 100 else ""),
+            f"/chat/{current_user.id}"
+        )
+        
+        print(f"Private message sent from {current_user.username} to {recipient.username}")
 
 # Replace your existing send_message handler with this one:
 @socketio.on('send_message')
