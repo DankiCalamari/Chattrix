@@ -44,7 +44,6 @@
     <div class="main-content">
         <div class="main-header">
             <h1 class="main-title">Public Chat</h1>
-            <!-- ADD THE PIN MESSAGE BUTTON HERE -->
             {% if current_user.is_admin %}
                 <div class="main-controls">
                     <button id="togglePinnedBtn" class="btn btn-secondary">
@@ -90,8 +89,224 @@
     window.currentUserId = {{ current_user.id }};
     window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
     
-    // Toggle pinned messages visibility
+    // Initialize Socket.IO
+    const socket = io();
+    
+    // DARK MODE FUNCTIONALITY - SELF CONTAINED
+    function setupDarkMode() {
+        console.log('🌙 Setting up dark mode...');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        const body = document.body;
+        
+        if (!darkModeToggle) {
+            console.error('❌ Dark mode toggle button not found');
+            return;
+        }
+        
+        console.log('✅ Dark mode toggle found');
+        
+        // Check saved theme
+        const savedTheme = localStorage.getItem('darkMode');
+        console.log('💾 Saved theme:', savedTheme);
+        
+        if (savedTheme === 'enabled') {
+            body.classList.add('dark-mode');
+            darkModeToggle.textContent = '☀️';
+            console.log('🌙 Applied dark mode');
+        } else {
+            body.classList.remove('dark-mode');
+            darkModeToggle.textContent = '🌙';
+            console.log('☀️ Applied light mode');
+        }
+        
+        // Add click listener
+        darkModeToggle.onclick = function(e) {
+            e.preventDefault();
+            console.log('🔄 Dark mode button clicked!');
+            
+            const isDarkMode = body.classList.toggle('dark-mode');
+            
+            if (isDarkMode) {
+                localStorage.setItem('darkMode', 'enabled');
+                darkModeToggle.textContent = '☀️';
+                console.log('🌙 Switched to dark mode');
+            } else {
+                localStorage.setItem('darkMode', 'disabled');
+                darkModeToggle.textContent = '🌙';
+                console.log('☀️ Switched to light mode');
+            }
+        };
+        
+        console.log('✅ Dark mode setup complete');
+    }
+    
+    // Pin message function (admin only)
+    function pinMessage(messageId) {
+        if (!window.isAdmin) {
+            alert('Admin access required');
+            return;
+        }
+        
+        console.log('📌 Pinning message:', messageId);
+        socket.emit('pin_message', { message_id: messageId });
+    }
+    
+    // Unpin message function (admin only)
+    function unpinMessage(messageId) {
+        if (!window.isAdmin) {
+            alert('Admin access required');
+            return;
+        }
+        
+        console.log('📌 Unpinning message:', messageId);
+        socket.emit('unpin_message', { message_id: messageId });
+    }
+    
+    // Load pinned messages
+    function loadPinnedMessages() {
+        console.log('📌 Loading pinned messages...');
+        
+        fetch('/pinned_messages')
+            .then(response => response.json())
+            .then(data => {
+                const pinnedContent = document.querySelector('.pinned-content');
+                if (pinnedContent) {
+                    pinnedContent.innerHTML = '';
+                    if (data && data.length > 0) {
+                        data.forEach(message => {
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = 'pinned-message';
+                            messageDiv.innerHTML = `
+                                <div class="message-avatar">
+                                    <img src="${message.profile_pic || '/static/profile_pics/default.jpg'}" alt="${message.username}" class="avatar-img" onerror="this.src='/static/profile_pics/default.jpg'">
+                                </div>
+                                <div class="message-content-wrapper">
+                                    <div class="message-header">
+                                        <span class="username">${message.display_name || message.username}</span>
+                                        <span class="timestamp">${message.timestamp}</span>
+                                        <button onclick="unpinMessage(${message.id})" class="unpin-btn" title="Unpin Message">❌</button>
+                                    </div>
+                                    <div class="message-content">${message.text}</div>
+                                </div>
+                            `;
+                            pinnedContent.appendChild(messageDiv);
+                        });
+                        console.log(`✅ Loaded ${data.length} pinned messages`);
+                    } else {
+                        pinnedContent.innerHTML = '<div class="no-pinned">No pinned messages</div>';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error loading pinned messages:', error);
+            });
+    }
+    
+    // Function to create message element with profile picture
+    function createMessageElement(data) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message';
+        messageDiv.setAttribute('data-message-id', data.id);
+        
+        // Default profile picture if none provided
+        const profilePic = data.profile_pic || data.avatar || '/static/profile_pics/default.jpg';
+        
+        // Check if user is admin to show pin button
+        const isAdmin = window.isAdmin;
+        const pinButton = isAdmin ? `<button class="pin-btn" onclick="pinMessage(${data.id})" title="Pin Message">📌</button>` : '';
+        
+        messageDiv.innerHTML = `
+            <div class="message-avatar">
+                <img src="${profilePic}" alt="${data.username}" class="avatar-img" onerror="this.src='/static/profile_pics/default.jpg'">
+            </div>
+            <div class="message-content-wrapper">
+                <div class="message-header">
+                    <span class="username">${data.username || data.display_name}</span>
+                    <span class="timestamp">${data.timestamp}</span>
+                    ${pinButton}
+                </div>
+                <div class="message-content">${data.text || data.message}</div>
+            </div>
+        `;
+        
+        return messageDiv;
+    }
+    
+    // Initialize everything when DOM loads
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('🚀 DOM loaded, initializing...');
+        
+        // Setup dark mode FIRST
+        setupDarkMode();
+        
+        // Socket connection
+        socket.on('connect', function() {
+            console.log('🔗 Connected to server');
+            socket.emit('join', {user_id: window.currentUserId});
+        });
+        
+        // Message handling
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('msgInput');
+        
+        if (messageForm && messageInput) {
+            messageForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const message = messageInput.value.trim();
+                if (message) {
+                    socket.emit('send_message', { text: message });
+                    messageInput.value = '';
+                }
+            });
+        }
+        
+        // Receive messages - Updated to show profile pictures
+        socket.on('receive_message', function(data) {
+            console.log('📨 Received message:', data);
+            const messages = document.getElementById('messages');
+            if (messages) {
+                const messageDiv = createMessageElement(data);
+                messages.appendChild(messageDiv);
+                messages.scrollTop = messages.scrollHeight;
+            }
+        });
+        
+        // Handle pinned message updates
+        socket.on('update_pinned', function(data) {
+            console.log('📌 Message pinned:', data);
+            loadPinnedMessages(); // Reload pinned messages
+        });
+        
+        socket.on('update_unpinned', function(data) {
+            console.log('📌 Message unpinned:', data);
+            loadPinnedMessages(); // Reload pinned messages
+        });
+        
+        // Load initial messages
+        fetch('/messages')
+            .then(response => response.json())
+            .then(messages => {
+                const messagesContainer = document.getElementById('messages');
+                if (messagesContainer && messages) {
+                    messagesContainer.innerHTML = '';
+                    messages.forEach(message => {
+                        const messageDiv = createMessageElement(message);
+                        messagesContainer.appendChild(messageDiv);
+                    });
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    console.log(`✅ Loaded ${messages.length} initial messages`);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error loading messages:', error);
+            });
+        
+        // Load pinned messages if admin
+        if (window.isAdmin) {
+            loadPinnedMessages();
+        }
+        
+        // Toggle pinned messages
         const toggleBtn = document.getElementById('togglePinnedBtn');
         const pinnedMessages = document.getElementById('pinnedMessages');
         
@@ -109,7 +324,6 @@
             testPushBtn.addEventListener('click', async function() {
                 console.log('🧪 Testing push notification...');
                 
-                // First try a simple browser notification
                 if ('Notification' in window) {
                     const permission = await Notification.requestPermission();
                     if (permission === 'granted') {
@@ -125,7 +339,6 @@
                     console.error('❌ Notifications not supported');
                 }
                 
-                // Also try server-side push notification
                 try {
                     const response = await fetch(`/test-push/${window.currentUserId}`);
                     const result = await response.json();
@@ -135,7 +348,161 @@
                 }
             });
         }
+        
+        console.log('✅ All initialization complete');
     });
 </script>
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+<style>
+/* Message styling with profile pictures */
+.message {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--message-bg, #f8f9fa);
+    border: 1px solid var(--border-color, #dee2e6);
+}
+
+.message-avatar {
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.avatar-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color, #dee2e6);
+}
+
+.message-content-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.message-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    gap: 10px;
+}
+
+.username {
+    font-weight: 600;
+    color: var(--primary-color, #007bff);
+}
+
+.timestamp {
+    font-size: 0.85em;
+    color: var(--text-muted, #6c757d);
+}
+
+.message-content {
+    color: var(--text-color, #333);
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+/* Pin button styling */
+.pin-btn, .unpin-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 2px 4px;
+    border-radius: 3px;
+    margin-left: auto;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.pin-btn:hover, .unpin-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* Pinned messages styling */
+.pinned-messages {
+    background: var(--surface-color, #ffffff);
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.pinned-header {
+    padding: 12px 16px;
+    background: var(--primary-color, #007bff);
+    color: white;
+    border-radius: 8px 8px 0 0;
+}
+
+.pinned-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+}
+
+.pinned-content {
+    padding: 10px;
+}
+
+.pinned-message {
+    display: flex;
+    align-items: flex-start;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+    margin-bottom: 8px;
+}
+
+.pinned-message:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.no-pinned {
+    text-align: center;
+    color: var(--text-muted, #6c757d);
+    font-style: italic;
+    padding: 20px;
+}
+
+/* Dark mode styles */
+.dark-mode .message {
+    background: var(--dark-message-bg, #2d3748);
+    border-color: var(--dark-border-color, #4a5568);
+}
+
+.dark-mode .username {
+    color: var(--dark-primary-color, #63b3ed);
+}
+
+.dark-mode .timestamp {
+    color: var(--dark-text-muted, #a0aec0);
+}
+
+.dark-mode .message-content {
+    color: var(--dark-text-color, #e2e8f0);
+}
+
+.dark-mode .avatar-img {
+    border-color: var(--dark-border-color, #4a5568);
+}
+
+.dark-mode .pin-btn:hover, .dark-mode .unpin-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .pinned-messages {
+    background: var(--dark-surface-color, #1e293b);
+    border-color: var(--dark-border-color, #4a5568);
+}
+
+.dark-mode .pinned-message {
+    border-bottom-color: var(--dark-border-color, #4a5568);
+}
+</style>
 {% endblock %}

@@ -536,37 +536,41 @@ def upload_file():
 @app.route('/messages')
 @login_required
 def get_messages():
-    """Return all public messages."""
+    """Return all public messages with profile pictures."""
     messages = Message.query.filter_by(is_private=False).order_by(Message.timestamp.asc()).all()
     result = []
     for msg in messages:
-        pic = msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else 'default.jpg'
         result.append({
             'id': msg.id,
             'display_name': msg.sender.display_name if msg.sender else 'System',
+            'username': msg.sender.username if msg.sender else 'system',
             'text': msg.text,
+            'message': msg.text,  # For compatibility
             'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'is_private': False,
             'sender_id': msg.sender_id,
-            'profile_pic': pic
+            'profile_pic': url_for('static', filename=f'profile_pics/{msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else "default.jpg"}'),
+            'avatar': url_for('static', filename=f'profile_pics/{msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else "default.jpg"}')
         })
     return jsonify(result)
 
 @app.route('/pinned_messages')
 @login_required
 def get_pinned_messages():
-    """Return all pinned messages."""
+    """Return all pinned messages with profile pictures."""
     pinned = Message.query.filter_by(pinned=True, is_private=False).order_by(Message.timestamp.desc()).all()
     result = []
     for msg in pinned:
-        pic = msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else 'default.jpg'
         result.append({
             'id': msg.id,
             'display_name': msg.sender.display_name if msg.sender else 'System',
+            'username': msg.sender.username if msg.sender else 'system',
             'text': msg.text,
+            'message': msg.text,  # For compatibility
             'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'pinned': True,
-            'profile_pic': pic
+            'profile_pic': url_for('static', filename=f'profile_pics/{msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else "default.jpg"}'),
+            'avatar': url_for('static', filename=f'profile_pics/{msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else "default.jpg"}')
         })
     return jsonify(result)
 
@@ -579,13 +583,15 @@ def handle_connect():
         join_room(f"user_{current_user.id}")
         user_sid_map[current_user.id] = request.sid
         online_users[current_user.id] = {
+            'id': current_user.id,
+            'username': current_user.username,
             'display_name': current_user.display_name,
-            'profile_pic': current_user.profile_pic or 'default.jpg'
+            'profile_pic': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}')
         }
         # Initialize user location
         user_locations[current_user.id] = 'unknown'
         emit('online_users', list(online_users.values()), broadcast=True)
-        print(f'User {current_user.id} connected')
+        print(f'✅ User {current_user.id} ({current_user.username}) connected')
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -597,90 +603,106 @@ def handle_disconnect():
         # Remove user from location tracking
         user_locations.pop(current_user.id, None)
         emit('online_users', list(online_users.values()), broadcast=True)
-        print(f'User {current_user.id} disconnected')
+        print(f'❌ User {current_user.id} ({current_user.username}) disconnected')
 
 @socketio.on('user_location')
 def handle_user_location(data):
     """Track which page/chat the user is currently on"""
+    if not current_user.is_authenticated:
+        return
+        
     location = data.get('location')
     user_locations[current_user.id] = location
-    print(f"User {current_user.id} is now on: {location}")
+    print(f"📍 User {current_user.id} ({current_user.username}) is now on: {location}")
 
 @socketio.on('join_user_room')
 def handle_join_user_room():
     """Join user to their personal notification room"""
+    if not current_user.is_authenticated:
+        return
+        
     room = f'user_{current_user.id}'
     join_room(room)
-    print(f"User {current_user.id} joined notification room: {room}")
+    print(f"🏠 User {current_user.id} ({current_user.username}) joined notification room: {room}")
 
 @socketio.on('join_private_room')
 def handle_join_private_room(data):
+    """Join private chat room between two users"""
+    if not current_user.is_authenticated:
+        return
+        
     user1_id = data['user1_id']
     user2_id = data['user2_id']
     room = f"private_{min(user1_id, user2_id)}_{max(user1_id, user2_id)}"
     join_room(room)
-    print(f"User {current_user.id} joined private room: {room}")
+    print(f"💬 User {current_user.id} ({current_user.username}) joined private room: {room}")
 
 # Update your handle_private_message function in app.py
-
 @socketio.on('private_message')
 def handle_private_message(data):
-    if current_user.is_authenticated:
-        recipient_id = data['recipient_id']
-        message_text = data['message']
+    """Handle private messages (alternative handler)"""
+    if not current_user.is_authenticated:
+        return
         
-        recipient = User.query.get(recipient_id)
-        if not recipient:
-            return
-        
-        # Create private message using existing Message model
-        message = Message(
-            sender_id=current_user.id,
-            recipient_id=recipient_id,  # Set recipient for private message
-            text=message_text,
-            is_private=True
-        )
-        
-        db.session.add(message)
-        db.session.commit()
-        
-        # Update conversation
-        conversation = get_or_create_conversation(current_user.id, recipient_id)
-        conversation.last_message_id = message.id
-        conversation.updated_at = datetime.now()
-        db.session.commit()
-        
-        # Prepare message data
-        message_data = {
-            'id': message.id,
-            'sender_id': current_user.id,
-            'username': current_user.username,
-            'display_name': current_user.display_name,
-            'profile_pic': current_user.profile_pic,
-            'text': message_text,
-            'message': message_text,  # Add both for compatibility
-            'timestamp': message.timestamp.isoformat(),
-            'recipient_id': recipient_id
-        }
-        
-        # Send to both sender and recipient
-        emit('receive_private_message', message_data, room=f"user_{current_user.id}")
-        emit('receive_private_message', message_data, room=f"user_{recipient_id}")
-        
-        # Send web push notification to recipient
-        send_web_push(
-            recipient_id,
-            f"Message from {current_user.display_name or current_user.username}",
-            message_text[:100] + ("..." if len(message_text) > 100 else ""),
-            f"/chat/{current_user.id}"
-        )
-        
-        print(f"Private message sent from {current_user.username} to {recipient.username}")
+    recipient_id = data['recipient_id']
+    message_text = data['message']
+    
+    recipient = User.query.get(recipient_id)
+    if not recipient:
+        return
+    
+    # Create private message using existing Message model
+    message = Message(
+        sender_id=current_user.id,
+        recipient_id=recipient_id,  # Set recipient for private message
+        text=message_text,
+        is_private=True
+    )
+    
+    db.session.add(message)
+    db.session.commit()
+    
+    # Update conversation
+    conversation = get_or_create_conversation(current_user.id, recipient_id)
+    conversation.last_message_id = message.id
+    conversation.updated_at = datetime.now()
+    db.session.commit()
+    
+    # Prepare message data with profile picture
+    message_data = {
+        'id': message.id,
+        'sender_id': current_user.id,
+        'username': current_user.username,
+        'display_name': current_user.display_name,
+        'text': message_text,
+        'message': message_text,  # Add both for compatibility
+        'timestamp': message.timestamp.isoformat(),
+        'recipient_id': recipient_id,
+        'profile_pic': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}'),
+        'avatar': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}')
+    }
+    
+    # Send to both sender and recipient
+    emit('receive_private_message', message_data, room=f"user_{current_user.id}")
+    emit('receive_private_message', message_data, room=f"user_{recipient_id}")
+    
+    # Send web push notification to recipient
+    send_web_push(
+        recipient_id,
+        f"Message from {current_user.display_name or current_user.username}",
+        message_text[:100] + ("..." if len(message_text) > 100 else ""),
+        f"/chat/{current_user.id}"
+    )
+    
+    print(f"💬 Private message sent from {current_user.username} to {recipient.username}")
 
 # Replace your existing send_message handler with this one:
 @socketio.on('send_message')
 def handle_send_message(data):
     """Handle public messages - this is the main handler for public chat"""
+    if not current_user.is_authenticated:
+        return
+    
     text = data.get('text', '').strip()
     
     if not text:
@@ -697,16 +719,18 @@ def handle_send_message(data):
     db.session.add(message)
     db.session.commit()
     
-    # Prepare message data
+    # Prepare message data with profile picture URL
     message_data = {
         'id': message.id,
         'display_name': current_user.display_name,
         'username': current_user.username,
         'text': message.text,
+        'message': message.text,  # For compatibility
         'timestamp': message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
         'is_private': False,
         'sender_id': current_user.id,
-        'profile_pic': current_user.profile_pic or 'default.jpg'
+        'profile_pic': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}'),
+        'avatar': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}')  # Alternative field name
     }
     
     # Send to all users in public chat
@@ -723,7 +747,64 @@ def handle_send_message(data):
                 'chat_url': url_for('index')
             }, room=f'user_{user_id}')
     
-    print(f"Public message sent by {current_user.id}: {text}")
+    print(f"📤 Public message sent by {current_user.id}: {text}")
+
+# Add send_private_message handler after the other message handlers
+@socketio.on('send_private_message')
+def handle_send_private_message(data):
+    """Handle private messages"""
+    if not current_user.is_authenticated:
+        return
+    
+    recipient_id = data.get('recipient_id')
+    message_text = data.get('text') or data.get('message', '')
+    
+    if not recipient_id or not message_text:
+        emit('error', {'message': 'Missing recipient or message'})
+        return
+    
+    # Create private message
+    private_message = Message(
+        sender_id=current_user.id,
+        recipient_id=recipient_id,
+        text=message_text,
+        timestamp=datetime.now(),
+        is_private=True
+    )
+    
+    db.session.add(private_message)
+    db.session.commit()
+    
+    # Update conversation
+    conversation = get_or_create_conversation(current_user.id, recipient_id)
+    conversation.last_message_id = private_message.id
+    conversation.updated_at = datetime.now()
+    db.session.commit()
+    
+    # Prepare message data with profile picture
+    message_data = {
+        'id': private_message.id,
+        'text': message_text,
+        'message': message_text,
+        'sender_id': current_user.id,
+        'recipient_id': recipient_id,
+        'username': current_user.username,
+        'display_name': current_user.display_name,
+        'timestamp': private_message.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+        'profile_pic': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}'),
+        'avatar': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}')
+    }
+    
+    print(f"📤 Sending private message with profile pic: {message_data['profile_pic']}")
+    
+    # Send to both sender and recipient
+    emit('receive_private_message', message_data, room=f'user_{current_user.id}')
+    emit('receive_private_message', message_data, room=f'user_{recipient_id}')
+    
+    # Send push notification to recipient
+    send_web_push(recipient_id, f"Private message from {current_user.username}", message_text)
+    
+    print(f"📤 Private message sent from {current_user.id} to {recipient_id}")
 
 # Also add these alternative handlers in case your frontend uses different event names:
 @socketio.on('message')
@@ -748,48 +829,64 @@ def handle_send_public_message(data):
 @socketio.on('pin_message')
 def handle_pin_message(data):
     """Allow admin to pin a message."""
-    if current_user.is_authenticated and current_user.is_admin:
-        # FIX: Use db.session.get() instead of Message.query.get()
-        msg = db.session.get(Message, data['message_id'])
-        if msg and not msg.is_private:  # Only pin public messages
-            msg.pinned = True
-            db.session.commit()
-            # FIX: Use emit() without socketio prefix
-            emit('update_pinned', broadcast=True)
+    if not (current_user.is_authenticated and current_user.is_admin):
+        emit('error', {'message': 'Admin access required'})
+        return
+    
+    message_id = data.get('message_id')
+    if not message_id:
+        emit('error', {'message': 'Message ID required'})
+        return
+        
+    msg = db.session.get(Message, message_id)
+    if msg and not msg.is_private:  # Only pin public messages
+        msg.pinned = True
+        db.session.commit()
+        emit('update_pinned', {'message_id': message_id}, broadcast=True)
+        print(f"📌 Admin {current_user.id} pinned message {message_id}")
+        emit('success', {'message': 'Message pinned successfully'})
+    else:
+        emit('error', {'message': 'Message not found or is private'})
 
 @socketio.on('unpin_message')
 def handle_unpin_message(data):
     """Handle unpinning a message"""
-    if not current_user.is_admin:
-        return {'success': False, 'message': 'Admin access required'}
+    if not (current_user.is_authenticated and current_user.is_admin):
+        emit('error', {'message': 'Admin access required'})
+        return
     
     message_id = data.get('message_id')
     if not message_id:
-        return {'success': False, 'message': 'Message ID required'}
+        emit('error', {'message': 'Message ID required'})
+        return
     
-    # Find and unpin the message - FIX: Use db.session.get() instead of Message.query.get()
+    # Find and unpin the message
     message = db.session.get(Message, message_id)
     if message:
-        message.pinned = False  # FIX: Use 'pinned' not 'is_pinned'
+        message.pinned = False
         db.session.commit()
         
-        # FIX: Use emit() without socketio prefix and without broadcast parameter
-        emit('update_unpinned', broadcast=True)
+        emit('update_unpinned', {'message_id': message_id}, broadcast=True)
         
-        print(f"Admin {current_user.id} unpinned message {message_id}")
-        return {'success': True}
+        print(f"📌 Admin {current_user.id} unpinned message {message_id}")
+        emit('success', {'message': 'Message unpinned successfully'})
     else:
-        return {'success': False, 'message': 'Message not found'}
+        emit('error', {'message': 'Message not found'})
 
 @socketio.on('user_joined')
 def handle_user_joined():
     """Broadcast a system message when a user joins."""
     if current_user.is_authenticated:
-        emit('new_message', {
+        join_message_data = {
             'system': True,
-            'text': f"{current_user.display_name} has joined the chat.",
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }, broadcast=True)
+            'text': f"{current_user.display_name or current_user.username} has joined the chat.",
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'username': 'System',
+            'display_name': 'System',
+            'profile_pic': url_for('static', filename='profile_pics/default.jpg')
+        }
+        emit('receive_message', join_message_data, broadcast=True)
+        print(f"👋 {current_user.username} joined the chat")
 
 # --- Flask-Admin setup ---
 admin = Admin(app, name='Chattrix Admin', template_mode='bootstrap4')
