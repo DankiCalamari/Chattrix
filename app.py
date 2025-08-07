@@ -13,38 +13,57 @@ from flask import flash
 from sqlalchemy import text
 import json
 from pywebpush import webpush, WebPushException
-import os
+from dotenv import load_dotenv
+from config import config
+
+# Load environment variables
+load_dotenv()
 
 # --- Flask app setup ---
-app = Flask(__name__)
+def create_app(config_name=None):
+    """Application factory pattern"""
+    app = Flask(__name__)
+    
+    # Determine configuration
+    if config_name is None:
+        config_name = os.environ.get('FLASK_ENV', 'development')
+    
+    app.config.from_object(config[config_name])
+    
+    return app
 
-# Generate proper VAPID keys for push notifications
-VAPID_PRIVATE_KEY = "qA3dGz3rKYLqXI8r8oALzmJJKh6-I6yXDMbEa8dOGGo"
-VAPID_PUBLIC_KEY = "BPKwJgJ9KY_Gl8FJyKYYbLEqGy7Sj3vE6d7JH1rIX7EX2HjyQ5mOz3l8kR8xM6L9R8xM6L9K8xM6L9"
+# Create app instance
+config_name = os.environ.get('FLASK_ENV', 'development')
+app = create_app(config_name)
 
-# Use simplified VAPID keys that work
-VAPID_PRIVATE_KEY = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgA3dGz3rKYLqXI8r8oALzmJJKh6I6yXDMbEa8dOGGo"
-VAPID_PUBLIC_KEY = "BHpyTs0vPvs6J2qHEIQPQxuzZ-BO3MEdVXMR3CP_AP1LMEZhfUOKIdDstklsqhQ8Tp5XCwGlUfwEuACBXk_EcB8"
+# Get configuration values
+VAPID_PRIVATE_KEY = app.config['VAPID_PRIVATE_KEY']
+VAPID_PUBLIC_KEY = app.config['VAPID_PUBLIC_KEY']
+VAPID_CLAIMS = app.config['VAPID_CLAIMS']
 
-VAPID_CLAIMS = {"sub": "mailto:admin@chattrix.com"}
-app.config['SECRET_KEY'] = 'secret-key'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.sqlite3'
-
-# Fix upload folder configuration
-PROFILE_PICS_FOLDER = os.path.join('static', 'profile_pics')
-UPLOADS_FOLDER = os.path.join('static', 'uploads')
+# Upload folder configuration from config
+PROFILE_PICS_FOLDER = app.config['PROFILE_PICS_FOLDER']
+UPLOADS_FOLDER = app.config['UPLOADS_FOLDER']
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'txt', 'docx', 'mp4'}
 
-app.config['PROFILE_PICS_FOLDER'] = PROFILE_PICS_FOLDER
-app.config['UPLOADS_FOLDER'] = UPLOADS_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-
+# Create upload directories
 # Create upload directories
 os.makedirs(PROFILE_PICS_FOLDER, exist_ok=True)
 os.makedirs(UPLOADS_FOLDER, exist_ok=True)
 
+# Initialize extensions
 db = SQLAlchemy(app)
-socketio = SocketIO(app, manage_session=True)
+
+# Configure SocketIO for production
+socketio_kwargs = {'manage_session': True}
+if config_name == 'production':
+    socketio_kwargs.update({
+        'logger': True,
+        'engineio_logger': True,
+        'cors_allowed_origins': "*"  # Configure this properly for your domain
+    })
+
+socketio = SocketIO(app, **socketio_kwargs)
 
 # --- Flask-Login setup ---
 login_manager = LoginManager(app)
@@ -786,9 +805,12 @@ admin.add_view(AdminModelView(Message, db.session))
 admin.add_view(AdminModelView(Conversation, db.session))
 
 # --- Create admin user ---
-with app.app_context():
-    admin_username = "admin"
-    admin_password = "admin123"
+def create_admin_user():
+    """Create admin user if it doesn't exist"""
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    admin_email = os.environ.get('ADMIN_EMAIL', 'admin@chattrix.com')
+    
     if not User.query.filter_by(username=admin_username).first():
         admin_user = User(
             display_name="Administrator",
@@ -798,8 +820,27 @@ with app.app_context():
         )
         db.session.add(admin_user)
         db.session.commit()
-        print("Admin user created: username='admin', password='admin123'")
+        print(f"Admin user created: username='{admin_username}'")
+        if config_name == 'development':
+            print(f"Password: '{admin_password}'")
 
-# --- Run the app ---
+# Initialize database and admin user
+with app.app_context():
+    db.create_all()
+    migrate_database()
+    create_admin_user()
+
+# --- Application entry point ---
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    host = os.environ.get('HOST', '0.0.0.0')
+    debug = config_name == 'development'
+    
+    print(f"Starting Chattrix in {config_name} mode...")
+    print(f"Server: http://{host}:{port}")
+    
+    socketio.run(app, 
+                host=host, 
+                port=port, 
+                debug=debug,
+                use_reloader=debug)
