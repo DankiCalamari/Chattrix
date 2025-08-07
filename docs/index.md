@@ -22,11 +22,9 @@ Get Chattrix up and running in minutes:
 ### 🛠️ Setup & Configuration
 - **[Installation](installation.md)** - Local development setup
 - **[Configuration](configuration.md)** - Environment variables and settings
-- **[Docker Setup](docker.md)** - Containerized deployment
 
 ### 🚀 Deployment
 - **[Production Deployment](deployment.md)** - Complete production setup guide
-- **[Docker Deployment](docker-deployment.md)** - Deploy with Docker
 - **[Cloud Deployment](cloud-deployment.md)** - AWS, DigitalOcean, Heroku
 
 ### 👥 User Guides
@@ -113,7 +111,6 @@ Get Chattrix up and running in minutes:
 
 ### Infrastructure
 - **Nginx** - Reverse proxy and static files
-- **Docker** - Containerization
 - **systemd** - Service management
 - **Let's Encrypt** - SSL certificates
 

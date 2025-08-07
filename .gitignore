@@ -51,9 +51,6 @@ ssl/
 *.key
 *.crt
 
-# Docker
-.dockerignore
-
 # Deployment
 deploy_logs/
 backup/

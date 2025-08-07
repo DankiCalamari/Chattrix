@@ -89,20 +89,7 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-### Option 2: Docker
-
-1. **Build and run:**
-```sh
-docker-compose up -d
-```
-
-2. **With custom domain (edit docker-compose.yml first):**
-```sh
-# Edit nginx.conf with your domain
-docker-compose up -d
-```
-
-### Option 3: Heroku
+### Option 2: Heroku
 
 1. **Install Heroku CLI and login:**
 ```sh
@@ -161,7 +148,6 @@ git push heroku main
 
 - **Environment-based configuration** (development/production/testing)
 - **PostgreSQL support** for scalable production deployment
-- **Docker containerization** with multi-service setup
 - **Nginx reverse proxy** with SSL and rate limiting
 - **Gunicorn WSGI server** with eventlet workers for WebSocket support
 - **Systemd service** for Linux server deployment
@@ -200,8 +186,6 @@ messaging_app_socketio/
 ├── .env.example         # Environment variables template
 ├── gunicorn.conf.py     # Gunicorn configuration
 ├── deploy.sh            # Linux deployment script
-├── Dockerfile           # Docker configuration
-├── docker-compose.yml   # Multi-service Docker setup
 ├── nginx.conf           # Nginx reverse proxy config
 ├── templates/           # Jinja2 templates
 │   ├── base.html

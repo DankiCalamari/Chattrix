@@ -763,53 +763,6 @@ sudo certbot certificates
 openssl s_client -connect yourdomain.com:443
 ```
 
-## 🐳 Docker Deployment Alternative
-
-### Docker Compose Production Setup
-
-```yaml
-version: '3.8'
-services:
-  web:
-    build: .
-    restart: unless-stopped
-    environment:
-      - FLASK_ENV=production
-      - DATABASE_URL=postgresql://chattrix:${DB_PASSWORD}@db:5432/chattrix
-    depends_on:
-      - db
-    volumes:
-      - ./static/uploads:/app/static/uploads
-      - ./logs:/var/log/chattrix
-
-  db:
-    image: postgres:13
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=chattrix
-      - POSTGRES_USER=chattrix
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backups:/backups
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/ssl/chattrix
-      - ./static:/app/static
-    depends_on:
-      - web
-
-volumes:
-  postgres_data:
-```
-
 ## ✅ Production Checklist
 
 Before going live:

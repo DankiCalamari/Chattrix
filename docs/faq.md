@@ -166,7 +166,6 @@ Chattrix can be deployed on:
 - **VPS providers:** Linode, Vultr, Hetzner
 - **Platform-as-a-Service:** Heroku, Railway, Render
 - **Self-hosted:** Your own servers
-- **Containers:** Docker, Kubernetes
 
 ### Do I need a domain name?
 

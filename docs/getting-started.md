@@ -225,16 +225,6 @@ npm run watch
 npm run build
 ```
 
-### Docker Development
-
-```bash
-# Build development container
-docker build -t chattrix-dev .
-
-# Run with development settings
-docker run -p 5000:5000 --env-file .env chattrix-dev
-```
-
 ## 🧪 Testing
 
 ### Manual Testing Checklist
