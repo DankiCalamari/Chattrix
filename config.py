@@ -59,11 +59,7 @@ class ProductionConfig(Config):
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_timeout': 20,
         'pool_recycle': 3600,
-        'pool_pre_ping': True,
-        'connect_args': {
-            'sslmode': 'require',
-            'connect_timeout': 10
-        }
+        'pool_pre_ping': True
     }
     
     # Security settings for production

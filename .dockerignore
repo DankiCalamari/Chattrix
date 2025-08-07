@@ -1,0 +1,51 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+README.md
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Local development files
+*.sqlite3
+*.db
+dev_chattrix.db
+
+# Logs
+*.log
+
+# Environment files (will be set by deployment platform)
+.env.example
+
+# Node modules (if any)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
