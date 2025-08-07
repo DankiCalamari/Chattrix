@@ -1,0 +1,56 @@
+# GitHub Pages Configuration for Chattrix Documentation
+title: Chattrix Documentation
+description: Complete documentation for Chattrix - A real-time messaging application with push notifications
+url: "https://DankiCalamari.github.io"
+baseurl: "/Chattrix"
+
+# Theme
+theme: minima
+remote_theme: pages-themes/cayman@v0.2.0
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# Navigation
+header_pages:
+  - index.md
+  - getting-started.md
+  - installation.md
+  - deployment.md
+  - api-reference.md
+  - user-guide.md
+  - troubleshooting.md
+
+# Social links
+github_username: DankiCalamari
+repository: Chattrix
+
+# SEO
+author: DankiCalamari
+twitter:
+  username: DankiCalamari
+  card: summary
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Exclude files
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor/bundle/
+  - vendor/cache/
+  - vendor/gems/
+  - vendor/ruby/
+
+# Include files
+include:
+  - _pages
