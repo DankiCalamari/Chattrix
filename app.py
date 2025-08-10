@@ -72,13 +72,28 @@ os.makedirs(UPLOADS_FOLDER, exist_ok=True)
 # Initialize extensions
 db = SQLAlchemy(app)
 
-# Configure SocketIO for production
-socketio_kwargs = {'manage_session': True}
+# Configure SocketIO for better real-time performance
+socketio_kwargs = {
+    'manage_session': True,
+    'async_mode': 'eventlet',
+    'ping_timeout': 10,
+    'ping_interval': 5,
+    'max_http_buffer_size': 1000000,
+    'allow_upgrades': True,
+    'transports': ['websocket', 'polling']
+}
+
 if config_name == 'production':
     socketio_kwargs.update({
         'logger': True,
         'engineio_logger': True,
         'cors_allowed_origins': "*"  # Configure this properly for your domain
+    })
+else:
+    # Development mode optimizations
+    socketio_kwargs.update({
+        'logger': False,
+        'engineio_logger': False
     })
 
 socketio = SocketIO(app, **socketio_kwargs)
@@ -905,6 +920,39 @@ def handle_user_joined():
         }
         emit('receive_message', join_message_data, broadcast=True)
         print(f"👋 {current_user.username} joined the chat")
+
+@socketio.on('typing')
+def handle_typing(data):
+    """Handle typing indicators for real-time feedback"""
+    if not current_user.is_authenticated:
+        return
+    
+    chat_type = data.get('chat_type', 'public')  # 'public' or 'private'
+    recipient_id = data.get('recipient_id')
+    is_typing = data.get('is_typing', False)
+    
+    typing_data = {
+        'user_id': current_user.id,
+        'username': current_user.username,
+        'display_name': current_user.display_name,
+        'is_typing': is_typing,
+        'chat_type': chat_type
+    }
+    
+    if chat_type == 'private' and recipient_id:
+        # Send typing indicator to specific user
+        emit('user_typing', typing_data, room=f'user_{recipient_id}')
+    else:
+        # Send typing indicator to all users in public chat
+        emit('user_typing', typing_data, broadcast=True, include_self=False)
+    
+    print(f"👤 {current_user.username} {'started' if is_typing else 'stopped'} typing in {chat_type} chat")
+
+@socketio.on('heartbeat')
+def handle_heartbeat():
+    """Handle heartbeat for connection monitoring"""
+    if current_user.is_authenticated:
+        emit('heartbeat_response', {'timestamp': datetime.now().isoformat()})
 
 # --- Flask-Admin setup ---
 admin = Admin(app, name='Chattrix Admin', template_mode='bootstrap4')
