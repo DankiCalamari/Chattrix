@@ -1,34 +1,39 @@
-flask==3.0.0
-flask-sqlalchemy==3.1.1
-flask-socketio==5.3.6
-flask-login==0.6.3
-flask-admin==1.6.1
-flask-toastr==0.5.8
-werkzeug==3.0.1
-python-socketio==5.10.0
-eventlet>=0.36.1
-pillow>=10.0.0
-pywebpush==1.14.0
-cryptography>=45.0.0
-gunicorn==21.2.0
+# Flask Core Framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Database
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.23
 psycopg2-binary==2.9.9
-python-dotenv==1.0.0
-setuptools>=69.0.0sqlalchemy==3.1.1
-flask-socketio==5.3.6
-flask-login==0.6.3
-flask-admin==1.6.1
-flask-toastr==0.5.8
-werkzeug==3.0.1
+
+# Real-time Communication
+Flask-SocketIO==5.3.6
 python-socketio==5.10.0
 eventlet==0.35.2
-pillow>=10.0.0
+
+# Authentication & Security
+Flask-Login==0.6.3
+cryptography>=41.0.0
+
+# Admin Interface
+Flask-Admin==1.6.1
+
+# UI Notifications
+Flask-Toastr==0.5.8
+
+# Image Processing
+Pillow>=10.0.0
+
+# Push Notifications
 pywebpush==1.14.0
-cryptography>=45.0.0
-gunicorn==21.2.0
-psycopg2-binary==2.9.9
+py-vapid==1.9.0
+
+# Environment Management
 python-dotenv==1.0.0
+
+# Production Server
+gunicorn==21.2.0
+
+# Development & Build Tools
 setuptools>=69.0.0
-pyotp==2.9.0
-qrcode[pil]==7.4.2
-authlib==1.2.1
-requests==2.31.0
