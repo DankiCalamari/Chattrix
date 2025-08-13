@@ -29,9 +29,12 @@
         </nav>
         
         <div class="online-users">
-            <div class="online-users-title">Online Users</div>
+            <div class="online-users-title">
+                <span>👥 Online Users</span>
+                <span id="onlineUsersCount" class="users-count">(0)</span>
+            </div>
             <div id="onlineUsersList" class="online-users-list">
-                <!-- Online users will be populated here -->
+                <div class="loading-users">Loading users...</div>
             </div>
         </div>
         
@@ -43,10 +46,6 @@
     </div>
 
     <div class="main-content">
-        <!-- Connection Status Indicator -->
-        <div id="connectionStatus" class="connection-status">
-            🟡 Connecting...
-        </div>
         
         <div class="main-header">
             <h1 class="main-title">Public Chat</h1>
@@ -101,347 +100,125 @@
     </div>
 </div>
 
+<!-- Add hidden data attributes for the JavaScript -->
+<div id="userData" 
+     data-user-id="{{ current_user.id }}" 
+     data-is-admin="{{ 'true' if current_user.is_admin else 'false' }}" 
+     style="display: none;"></div>
+
+<!-- Load Socket.IO and our script -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
 <script>
-    // Pass user data to JavaScript
+    // Set global variables for the external script
     window.currentUserId = {{ current_user.id }};
     window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
     
-    // Initialize Socket.IO
-    const socket = io();
-    
-    // ===== DARK MODE FUNCTIONALITY - WORKING VERSION =====
-    function initializeDarkMode() {
-        console.log('🌙 Initializing dark mode...');
-        
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        const body = document.body;
-        
-        if (!darkModeToggle) {
-            console.error('❌ Dark mode toggle button not found!');
-            return;
-        }
-        
-        console.log('✅ Dark mode toggle button found');
-        
-        // Check for saved dark mode preference
-        const savedTheme = localStorage.getItem('darkMode');
-        console.log('💾 Saved theme:', savedTheme);
-        
-        // Apply saved theme
-        if (savedTheme === 'enabled') {
-            body.classList.add('dark-mode');
-            darkModeToggle.textContent = '☀️';
-            console.log('🌙 Applied dark mode from localStorage');
-        } else {
-            body.classList.remove('dark-mode');
-            darkModeToggle.textContent = '🌙';
-            console.log('☀️ Applied light mode');
-        }
-        
-        // Remove any existing event listeners to prevent duplicates
-        const newToggle = darkModeToggle.cloneNode(true);
-        darkModeToggle.parentNode.replaceChild(newToggle, darkModeToggle);
-        
-        // Add click event listener to the new button
-        newToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log('🔄 Dark mode button clicked!');
-            
-            // Toggle the dark mode class
-            const isDarkMode = body.classList.toggle('dark-mode');
-            
-            if (isDarkMode) {
-                localStorage.setItem('darkMode', 'enabled');
-                newToggle.textContent = '☀️';
-                console.log('🌙 Switched to dark mode');
-            } else {
-                localStorage.setItem('darkMode', 'disabled');
-                newToggle.textContent = '🌙';
-                console.log('☀️ Switched to light mode');
-            }
-        });
-        
-        console.log('✅ Dark mode initialized successfully');
-    }
-    
-    // Initialize connection status
-    let connectionStatus = 'connecting';
-    let connectionQuality = 'unknown';
-    
-    function updateConnectionStatus(status = connectionStatus, quality = connectionQuality) {
-        connectionStatus = status;
-        connectionQuality = quality;
-        
-        const statusElement = document.getElementById('connectionStatus');
-        if (!statusElement) {
-            console.warn('Connection status element not found');
-            return;
-        }
-        
-        let statusText = '';
-        let statusClass = '';
-        
-        switch (status) {
-            case 'connected':
-                statusText = `🟢 Real-time`;
-                statusClass = 'connected';
-                break;
-            case 'connecting':
-                statusText = '🟡 Connecting...';
-                statusClass = 'connecting';
-                break;
-            case 'disconnected':
-                statusText = '🔴 Offline';
-                statusClass = 'disconnected';
-                break;
-            case 'error':
-                statusText = '⚠️ Error';
-                statusClass = 'error';
-                break;
-            default:
-                statusText = '🟡 Connecting...';
-                statusClass = 'connecting';
-        }
-        
-        if (quality && status === 'connected') {
-            statusText += ` (${quality})`;
-        }
-        
-        statusElement.textContent = statusText;
-        statusElement.className = `connection-status ${statusClass}`;
-        
-        console.log(`📡 Connection status: ${statusText}`);
-    }
-    
-    // Function to create message element with profile picture
-    function createMessageElement(data) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message';
-        if (data.system) {
-            messageDiv.classList.add('system-message');
-        }
-        
-        // Default profile picture if none provided
-        const profilePic = data.profile_pic || data.avatar || '/static/profile_pics/default.jpg';
-        
-        // Create pin button for admin users (only for non-system messages)
-        const pinButton = window.isAdmin && !data.system ? 
-            `<button class="pin-btn" onclick="pinMessage(${data.id})" title="Pin message">📌</button>` : '';
-        
-        messageDiv.innerHTML = `
-            <div class="message-avatar">
-                <img src="${profilePic}" alt="${data.username || data.display_name}" class="avatar-img" onerror="this.src='/static/profile_pics/default.jpg'">
-            </div>
-            <div class="message-content-wrapper">
-                <div class="message-header">
-                    <span class="username">${data.display_name || data.username}</span>
-                    <span class="timestamp">${data.timestamp}</span>
-                    ${pinButton}
-                </div>
-                <div class="message-content">${data.text || data.message}</div>
-            </div>
-        `;
-        
-        return messageDiv;
-    }
-    
-    // Pin message function
-    function pinMessage(messageId) {
-        if (!window.isAdmin) {
-            alert('Admin access required');
-            return;
-        }
-        
-        console.log('📌 Pinning message:', messageId);
-        socket.emit('pin_message', { message_id: messageId });
-    }
-    
-    // Load pinned messages
-    function loadPinnedMessages() {
-        fetch('/pinned_messages')
-            .then(response => response.json())
-            .then(data => {
-                const pinnedContent = document.querySelector('.pinned-content');
-                if (pinnedContent) {
-                    pinnedContent.innerHTML = '';
-                    data.forEach(message => {
-                        const messageDiv = document.createElement('div');
-                        messageDiv.className = 'pinned-message';
-                        messageDiv.innerHTML = `
-                            <div class="message-avatar">
-                                <img src="${message.profile_pic}" alt="${message.username}" class="avatar-img" onerror="this.src='/static/profile_pics/default.jpg'">
-                            </div>
-                            <div class="message-content-wrapper">
-                                <div class="message-header">
-                                    <span class="username">${message.display_name || message.username}</span>
-                                    <span class="timestamp">${message.timestamp}</span>
-                                    <button onclick="unpinMessage(${message.id})" class="unpin-btn" title="Unpin message">❌</button>
-                                </div>
-                                <div class="message-content">${message.text}</div>
-                            </div>
-                        `;
-                        pinnedContent.appendChild(messageDiv);
-                    });
-                }
-            })
-            .catch(error => console.error('Error loading pinned messages:', error));
-    }
-    
-    // Unpin message function
-    function unpinMessage(messageId) {
-        if (!window.isAdmin) {
-            alert('Admin access required');
-            return;
-        }
-        
-        console.log('📌 Unpinning message:', messageId);
-        socket.emit('unpin_message', { message_id: messageId });
-    }
-    
-    // Load existing messages
-    function loadExistingMessages() {
-        fetch('/messages')
-            .then(response => response.json())
-            .then(messages => {
-                const messagesContainer = document.getElementById('messages');
-                if (messagesContainer) {
-                    messagesContainer.innerHTML = '';
-                    messages.forEach(message => {
-                        const messageElement = createMessageElement(message);
-                        messagesContainer.appendChild(messageElement);
-                    });
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                }
-            })
-            .catch(error => console.error('Error loading messages:', error));
-    }
-    
-    // Initialize everything when DOM is ready
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('🚀 DOM loaded, initializing Chattrix...');
-        
-        // INITIALIZE DARK MODE FIRST
-        initializeDarkMode();
-        
-        // Initialize connection status
-        updateConnectionStatus('connecting');
-        
-        // Load existing messages
-        loadExistingMessages();
-        
-        // Load pinned messages if admin
-        if (window.isAdmin) {
-            loadPinnedMessages();
-        }
-        
-        // Set user location
-        socket.emit('user_location', { location: 'public_chat' });
-        
-        // Socket event listeners
-        socket.on('connect', function() {
-            console.log('🔗 Connected to server');
-            updateConnectionStatus('connected', 'Excellent');
-            socket.emit('join_user_room');
-        });
-        
-        socket.on('disconnect', function() {
-            console.log('❌ Disconnected from server');
-            updateConnectionStatus('disconnected');
-        });
-        
-        socket.on('connect_error', function(error) {
-            console.error('🔥 Connection error:', error);
-            updateConnectionStatus('error');
-        });
-        
-        socket.on('receive_message', function(data) {
-            console.log('📨 Received message:', data);
-            const messages = document.getElementById('messages');
-            if (messages) {
-                const messageDiv = createMessageElement(data);
-                messageDiv.classList.add('message-glow');
-                messages.appendChild(messageDiv);
-                messages.scrollTop = messages.scrollHeight;
-                
-                // Remove glow effect after animation
-                setTimeout(() => {
-                    messageDiv.classList.remove('message-glow');
-                }, 2000);
-            }
-        });
-        
-        // Message form handling
-        const messageForm = document.getElementById('messageForm');
-        const messageInput = document.getElementById('msgInput');
-        
-        if (messageForm && messageInput) {
-            messageForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const message = messageInput.value.trim();
-                if (message) {
-                    socket.emit('send_message', { text: message });
-                    messageInput.value = '';
-                }
-            });
-        }
-        
-        // Pinned messages toggle
-        const toggleBtn = document.getElementById('togglePinnedBtn');
-        const pinnedMessages = document.getElementById('pinnedMessages');
-        
-        if (toggleBtn && pinnedMessages) {
-            toggleBtn.addEventListener('click', function() {
-                const isVisible = pinnedMessages.style.display !== 'none';
-                pinnedMessages.style.display = isVisible ? 'none' : 'block';
-                toggleBtn.textContent = isVisible ? 'Show Pinned Messages' : 'Hide Pinned Messages';
-            });
-        }
-        
-        // Test push notification button
-        const testPushBtn = document.getElementById('testPushBtn');
-        if (testPushBtn) {
-            testPushBtn.addEventListener('click', async function() {
-                try {
-                    const response = await fetch(`/test-push/${window.currentUserId}`);
-                    const result = await response.json();
-                    console.log('🧪 Push test result:', result);
-                    
-                    if ('Notification' in window) {
-                        const permission = await Notification.requestPermission();
-                        if (permission === 'granted') {
-                            new Notification('Test Notification', {
-                                body: 'This is a test notification from Chattrix!',
-                                icon: '/static/profile_pics/default.jpg'
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error('❌ Error testing push:', error);
-                }
-            });
-        }
-        
-        // Socket event listeners for pin/unpin updates
-        socket.on('update_pinned', function(data) {
-            console.log('📌 Message pinned:', data);
-            if (window.isAdmin) {
-                loadPinnedMessages();
-            }
-        });
-        
-        socket.on('update_unpinned', function(data) {
-            console.log('📌 Message unpinned:', data);
-            if (window.isAdmin) {
-                loadPinnedMessages();
-            }
-        });
-        
-        console.log('✅ Chattrix initialization complete');
+    console.log('🚀 Chat page loaded with user:', {
+        id: window.currentUserId,
+        isAdmin: window.isAdmin
     });
 </script>
 
 <style>
+/* Online Users Styling */
+.online-users {
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--sidebar-section-bg, #f8f9fa);
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #dee2e6);
+}
+
+.online-users-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-color, #333);
+}
+
+.users-count {
+    font-size: 0.9em;
+    color: var(--text-muted, #6c757d);
+}
+
+.online-users-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.online-user {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    margin-bottom: 5px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.online-user:hover {
+    background: var(--hover-bg, #e9ecef);
+}
+
+.online-user.current-user {
+    background: var(--primary-light, #e3f2fd);
+    border: 1px solid var(--primary-color, #007bff);
+}
+
+.online-user.clickable:hover {
+    background: var(--primary-light, #e3f2fd);
+    cursor: pointer;
+}
+
+.online-user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+    border: 1px solid var(--border-color, #dee2e6);
+}
+
+.avatar-fallback {
+    background: var(--primary-color, #007bff);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.online-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.online-user-name {
+    display: block;
+    font-weight: 500;
+    color: var(--text-color, #333);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.online-status {
+    display: block;
+    font-size: 0.8em;
+    color: var(--success-color, #28a745);
+}
+
+.no-online-users, .loading-users {
+    text-align: center;
+    color: var(--text-muted, #6c757d);
+    font-style: italic;
+    padding: 10px;
+}
+
 /* Message styling with profile pictures */
 .message {
     display: flex;
@@ -556,7 +333,96 @@
     border: 1px solid #f5c6cb;
 }
 
+/* Typing indicator styles */
+.typing-indicator {
+    padding: 10px;
+    margin: 10px 0;
+    background: var(--message-bg, #f8f9fa);
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #dee2e6);
+}
+
+.typing-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.typing-text {
+    font-style: italic;
+    color: var(--text-muted, #6c757d);
+}
+
+.typing-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: var(--primary-color, #007bff);
+    border-radius: 50%;
+    animation: typing-bounce 1.4s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+.typing-dots span:nth-child(3) { animation-delay: 0s; }
+
+@keyframes typing-bounce {
+    0%, 80%, 100% { 
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Temp message styles */
+.temp-message {
+    opacity: 0.7;
+    border-style: dashed;
+}
+
+.temp-message .message-content::after {
+    content: " ⏳";
+    color: var(--text-muted, #6c757d);
+}
+
 /* Dark mode styles */
+.dark-mode .online-users {
+    background: var(--dark-sidebar-section-bg, #2d3748);
+    border-color: var(--dark-border-color, #4a5568);
+}
+
+.dark-mode .online-users-title {
+    color: var(--dark-text-color, #e2e8f0);
+}
+
+.dark-mode .online-user:hover {
+    background: var(--dark-hover-bg, #4a5568);
+}
+
+.dark-mode .online-user.current-user {
+    background: var(--dark-primary-light, #2d5a87);
+    border-color: var(--dark-primary-color, #63b3ed);
+}
+
+.dark-mode .online-user.clickable:hover {
+    background: var(--dark-primary-light, #2d5a87);
+}
+
+.dark-mode .online-user-name {
+    color: var(--dark-text-color, #e2e8f0);
+}
+
+.dark-mode .no-online-users, .dark-mode .loading-users {
+    color: var(--dark-text-muted, #a0aec0);
+}
+
 .dark-mode .message {
     background: var(--dark-message-bg, #2d3748);
     border-color: var(--dark-border-color, #4a5568);
@@ -609,6 +475,15 @@
     background: #3d1a1e;
     color: #d4a7a7;
     border-color: #5a2d32;
+}
+
+.dark-mode .typing-indicator {
+    background: var(--dark-message-bg, #2d3748);
+    border-color: var(--dark-border-color, #4a5568);
+}
+
+.dark-mode .typing-text {
+    color: var(--dark-text-muted, #a0aec0);
 }
 </style>
 {% endblock %}

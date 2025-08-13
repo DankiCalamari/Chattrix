@@ -294,13 +294,26 @@ function displayPublicMessage(data) {
     const isOwnMessage = data.sender_id == currentUserId;
     messageDiv.className = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
     
-    // Handle profile picture
+    // Handle profile picture with proper fallback
     let avatarHtml = '';
-    if (data.profile_pic && data.profile_pic !== 'default.jpg') {
-        avatarHtml = `<img src="/static/profile_pics/${data.profile_pic}" alt="Profile" class="message-avatar">`;
+    
+    // Check if we have a valid profile picture
+    const hasValidProfilePic = data.profile_pic && 
+                              data.profile_pic !== 'default.jpg' && 
+                              data.profile_pic !== '/static/profile_pics/default.jpg' &&
+                              !data.profile_pic.includes('default.jpg');
+    
+    if (hasValidProfilePic) {
+        // Handle both full URLs and just filenames
+        const profilePicUrl = data.profile_pic.startsWith('/static/') ? 
+                             data.profile_pic : 
+                             `/static/profile_pics/${data.profile_pic}`;
+        avatarHtml = `<img src="${profilePicUrl}" alt="Profile" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                      <div class="avatar-fallback" style="display: none;">${(data.display_name || data.username || '?')[0].toUpperCase()}</div>`;
     } else {
+        // Use first letter fallback
         const initial = (data.display_name || data.username || '?')[0].toUpperCase();
-        avatarHtml = `<div class="message-avatar avatar-fallback">${initial}</div>`;
+        avatarHtml = `<div class="avatar-fallback">${initial}</div>`;
     }
     
     // Pin button for admins
@@ -310,7 +323,9 @@ function displayPublicMessage(data) {
     }
     
     messageDiv.innerHTML = `
-        ${avatarHtml}
+        <div class="message-avatar">
+            ${avatarHtml}
+        </div>
         <div class="message-content">
             <div class="message-header">
                 <span class="message-sender">${data.display_name || data.username}</span>
@@ -351,17 +366,32 @@ function displayPrivateMessage(data) {
     
     messageDiv.className = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
     
-    // Handle profile picture
+    // Handle profile picture with proper fallback
     let avatarHtml = '';
-    if (data.profile_pic && data.profile_pic !== 'default.jpg') {
-        avatarHtml = `<img src="/static/profile_pics/${data.profile_pic}" alt="Profile" class="message-avatar">`;
+    
+    // Check if we have a valid profile picture
+    const hasValidProfilePic = data.profile_pic && 
+                              data.profile_pic !== 'default.jpg' && 
+                              data.profile_pic !== '/static/profile_pics/default.jpg' &&
+                              !data.profile_pic.includes('default.jpg');
+    
+    if (hasValidProfilePic) {
+        // Handle both full URLs and just filenames
+        const profilePicUrl = data.profile_pic.startsWith('/static/') ? 
+                             data.profile_pic : 
+                             `/static/profile_pics/${data.profile_pic}`;
+        avatarHtml = `<img src="${profilePicUrl}" alt="Profile" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                      <div class="avatar-fallback" style="display: none;">${(data.display_name || data.username || '?')[0].toUpperCase()}</div>`;
     } else {
-        const initial = (data.display_name || data.username)[0].toUpperCase();
-        avatarHtml = `<div class="message-avatar avatar-fallback">${initial}</div>`;
+        // Use first letter fallback
+        const initial = (data.display_name || data.username || '?')[0].toUpperCase();
+        avatarHtml = `<div class="avatar-fallback">${initial}</div>`;
     }
     
     messageDiv.innerHTML = `
-        ${avatarHtml}
+        <div class="message-avatar">
+            ${avatarHtml}
+        </div>
         <div class="message-content">
             <div class="message-header">
                 <span class="message-sender">${data.display_name || data.username}</span>
@@ -422,9 +452,30 @@ function updateOnlineUsers(users) {
     users.forEach(user => {
         const userDiv = document.createElement('div');
         userDiv.className = 'online-user';
+        
+        // Handle profile picture for online users
+        let userAvatarHtml = '';
+        const hasValidProfilePic = user.profile_pic && 
+                                  user.profile_pic !== 'default.jpg' && 
+                                  user.profile_pic !== '/static/profile_pics/default.jpg' &&
+                                  !user.profile_pic.includes('default.jpg');
+        
+        if (hasValidProfilePic) {
+            const profilePicUrl = user.profile_pic.startsWith('/static/') ? 
+                                 user.profile_pic : 
+                                 `/static/profile_pics/${user.profile_pic}`;
+            userAvatarHtml = `<img src="${profilePicUrl}" alt="Profile" class="online-user-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                             <div class="avatar-fallback online-user-avatar" style="display: none;">${(user.display_name || user.username || 'U')[0].toUpperCase()}</div>`;
+        } else {
+            userAvatarHtml = `<div class="avatar-fallback online-user-avatar">${(user.display_name || user.username || 'U')[0].toUpperCase()}</div>`;
+        }
+        
         userDiv.innerHTML = `
-            <div class="user-avatar">${(user.display_name || 'U')[0].toUpperCase()}</div>
-            <span class="user-name">${user.display_name || 'Unknown User'}</span>
+            ${userAvatarHtml}
+            <div class="online-user-info">
+                <span class="online-user-name">${user.display_name || user.username || 'Unknown User'}</span>
+                <span class="online-status">Online</span>
+            </div>
         `;
         onlineUsersList.appendChild(userDiv);
     });
@@ -453,26 +504,26 @@ function unpinMessage(messageId) {
 }
 
 // Setup dark mode toggle
-function setupDarkMode() {
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    if (!darkModeToggle) return;
+// function setupDarkMode() {
+//     const darkModeToggle = document.getElementById('darkModeToggle');
+//     if (!darkModeToggle) return;
     
-    // Load saved theme
-    const savedTheme = localStorage.getItem('darkMode');
-    if (savedTheme === 'true') {
-        document.body.classList.add('dark-mode');
-        darkModeToggle.textContent = '☀️';
-    }
+//     // Load saved theme
+//     const savedTheme = localStorage.getItem('darkMode');
+//     if (savedTheme === 'true') {
+//         document.body.classList.add('dark-mode');
+//         darkModeToggle.textContent = '☀️';
+//     }
     
-    // Toggle dark mode
-    darkModeToggle.addEventListener('click', function() {
-        document.body.classList.toggle('dark-mode');
-        const isDark = document.body.classList.contains('dark-mode');
+//     // Toggle dark mode
+//     darkModeToggle.addEventListener('click', function() {
+//         document.body.classList.toggle('dark-mode');
+//         const isDark = document.body.classList.contains('dark-mode');
         
-        localStorage.setItem('darkMode', isDark);
-        darkModeToggle.textContent = isDark ? '☀️' : '🌙';
-    });
-}
+//         localStorage.setItem('darkMode', isDark);
+//         darkModeToggle.textContent = isDark ? '☀️' : '🌙';
+//     });
+// }
 
 // Handle pinned messages updates
 socket.on('update_pinned', function() {

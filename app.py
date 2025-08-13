@@ -18,12 +18,21 @@ from pywebpush import webpush, WebPushException
 from dotenv import load_dotenv
 from config import config
 
+
 # Load environment variables
 load_dotenv()
 
 # --- Flask app setup ---
 def create_app(config_name=None):
-    """Application factory pattern"""
+    """
+    Application factory pattern for creating Flask app instances.
+    
+    Args:
+        config_name (str): Configuration environment ('development', 'production', 'testing')
+        
+    Returns:
+        Flask: Configured Flask application instance with database and extensions
+    """
     app = Flask(__name__)
     
     # Determine configuration
@@ -109,6 +118,11 @@ user_locations = {}  # Track which page/chat each user is on
 
 # User model
 class User(db.Model, UserMixin):
+    """
+    User model with authentication and profile support
+    
+    Handles user registration, login, and profile management
+    """
     id = db.Column(db.Integer, primary_key=True)
     display_name = db.Column(db.String(50), nullable=False)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -157,11 +171,26 @@ class Conversation(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
+    """
+    User loader callback for Flask-Login.
+    
+    Args:
+        user_id (str): User ID from session
+        
+    Returns:
+        User: User object if found, None otherwise
+    """
     return db.session.get(User, int(user_id))  # Use db.session.get() instead of User.query.get()
 
 # --- Database Migration ---
 def migrate_database():
-    """Add missing columns to existing database"""
+    """
+    Safely add missing columns to existing database tables for backward compatibility.
+    
+    This function checks for the existence of each column before attempting to add it,
+    preventing errors when running on existing databases that may be missing newer columns.
+    Handles: recipient_id, is_private, read, is_file, file_path, original_filename, pinned columns
+    """
     try:
         with app.app_context():
             # Use db.session.execute instead of db.engine.execute
@@ -270,13 +299,26 @@ def subscribe():
 
 @app.route('/vapid-public-key')
 def get_vapid_public_key():
-    """Return the VAPID public key for frontend use"""
+    """
+    API endpoint to provide VAPID public key for push notification setup.
+    
+    Returns:
+        JSON: Contains the VAPID public key needed by frontend for push subscriptions
+    """
     return jsonify({'publicKey': VAPID_PUBLIC_KEY})
 
 @app.route('/test-push/<int:user_id>')
 @login_required
 def test_push_notification(user_id):
-    """Test endpoint to send a push notification to a specific user"""
+    """
+    Admin-only endpoint for testing push notifications to a specific user.
+    
+    Args:
+        user_id (int): Target user ID for the test notification
+        
+    Returns:
+        JSON: Success/failure status of the test notification
+    """
     if current_user.is_admin:
         send_web_push(
             user_id,
@@ -290,6 +332,20 @@ def test_push_notification(user_id):
 
 
 def send_web_push(user_id, title, body, url='/chat'):
+    """
+    Send web push notifications to all subscribed devices for a specific user.
+    
+    Args:
+        user_id (int): Target user ID for the notification
+        title (str): Notification title text
+        body (str): Notification body/message text
+        url (str): URL to navigate to when notification is clicked (default: '/chat')
+        
+    Note:
+        - Automatically removes expired subscriptions (410 responses)
+        - Handles WebPush exceptions gracefully
+        - Logs success/failure for debugging
+    """
     try:
         subscriptions = PushSubscription.query.filter_by(user_id=user_id).all()
         
@@ -337,10 +393,33 @@ def send_web_push(user_id, title, body, url='/chat'):
         print(f"❌ Error in send_web_push function: {e}")
 
 def allowed_file(filename):
+    """
+    Check if uploaded file has an allowed extension.
+    
+    Args:
+        filename (str): Name of the uploaded file
+        
+    Returns:
+        bool: True if file extension is in ALLOWED_EXTENSIONS, False otherwise
+    """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def get_or_create_conversation(user1_id, user2_id):
-    """Get existing conversation or create new one"""
+    """
+    Find existing private conversation between two users or create a new one.
+    
+    Args:
+        user1_id (int): First user's ID
+        user2_id (int): Second user's ID
+        
+    Returns:
+        Conversation: Existing or newly created conversation object
+        
+    Note:
+        - Automatically orders user IDs (lower ID as user1, higher as user2)
+        - Creates conversation in database if it doesn't exist
+        - Updates timestamp when conversation is accessed
+    """
     conversation = Conversation.query.filter(
         ((Conversation.user1_id == user1_id) & (Conversation.user2_id == user2_id)) |
         ((Conversation.user1_id == user2_id) & (Conversation.user2_id == user1_id))
@@ -362,11 +441,39 @@ def get_or_create_conversation(user1_id, user2_id):
 @app.route('/')
 @login_required
 def index():
-    """Main public chat page."""
+    """
+    Main public chat page route.
+    
+    Returns:
+        Template: Renders the main chat interface (chat.html)
+        
+    Note:
+        - Requires user authentication
+        - Serves as the primary chat room for all users
+    """
     return render_template('chat.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """
+    User registration route handling both GET and POST requests.
+    
+    GET: Displays registration form
+    POST: Processes registration form submission
+    
+    Form fields:
+        - display_name: User's display name
+        - username: Unique username for login
+        - password: User's password (will be hashed)
+        
+    Returns:
+        Template: Registration form on GET, redirect to login on successful POST
+        
+    Note:
+        - Validates username uniqueness
+        - Hashes passwords using PBKDF2 with SHA256
+        - Shows flash messages for feedback
+    """
     if request.method == 'POST':
         display_name = request.form['display_name']
         username = request.form['username']
@@ -384,6 +491,24 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """
+    User login route handling both GET and POST requests.
+    
+    GET: Displays login form
+    POST: Processes login form submission
+    
+    Form fields:
+        - username: User's username
+        - password: User's password
+        
+    Returns:
+        Template: Login form on GET, redirect to main chat on successful POST
+        
+    Note:
+        - Validates user existence and password
+        - Uses Flask-Login for session management
+        - Shows flash messages for feedback
+    """
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -401,13 +526,43 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    """
+    User logout route that ends the current session.
+    
+    Returns:
+        Redirect: Redirects to login page after logout
+        
+    Note:
+        - Requires user to be logged in
+        - Clears user session using Flask-Login
+    """
     logout_user()
     return redirect(url_for('login'))
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    """Allow user to update display name, password, and profile picture."""
+    """
+    User profile management route for updating personal information.
+    
+    GET: Displays profile editing form with current user data
+    POST: Processes profile update form submission
+    
+    Form fields:
+        - display_name: User's display name
+        - password: New password (optional)
+        - bio: User's bio/description
+        - profile_pic: Profile picture file upload
+        
+    Returns:
+        Template: Profile form on GET, redirect to profile on successful POST
+        
+    Note:
+        - Validates and secures uploaded profile pictures
+        - Hashes new passwords if provided
+        - Updates only provided fields
+        - Shows flash messages for feedback
+    """
     if request.method == 'POST':
         bio = request.form.get('bio')
         display_name = request.form.get('display_name')
@@ -441,7 +596,17 @@ def profile():
 @app.route('/conversations')
 @login_required
 def conversations():
-    """Show all private conversations for current user"""
+    """
+    Display all private conversations for the current user.
+    
+    Returns:
+        Template: Conversations list page with all user's private chats
+        
+    Note:
+        - Shows conversations ordered by most recent activity
+        - Includes conversations where user is either participant
+        - Requires user authentication
+    """
     conversations = db.session.query(Conversation).filter(
         (Conversation.user1_id == current_user.id) | 
         (Conversation.user2_id == current_user.id)
@@ -452,7 +617,22 @@ def conversations():
 @app.route('/chat/<int:user_id>')
 @login_required 
 def private_chat(user_id):
-    """Private chat with specific user"""
+    """
+    Private chat interface between current user and specified user.
+    
+    Args:
+        user_id (int): ID of the other user to chat with
+        
+    Returns:
+        Template: Private chat interface with message history
+        Redirect: To conversations page if trying to chat with self
+        
+    Note:
+        - Prevents users from chatting with themselves
+        - Creates conversation record if it doesn't exist
+        - Automatically marks incoming messages as read
+        - Loads complete message history between the two users
+    """
     other_user = User.query.get_or_404(user_id)
     
     if other_user.id == current_user.id:
@@ -481,7 +661,17 @@ def private_chat(user_id):
 @app.route('/users')
 @login_required
 def user_list():
-    """Show all users to start private chats"""
+    """
+    Display list of all users available for starting private chats.
+    
+    Returns:
+        Template: User list page showing all users except current user
+        
+    Note:
+        - Excludes current user from the list
+        - Used for initiating new private conversations
+        - Requires user authentication
+    """
     users = User.query.filter(User.id != current_user.id).all()
     return render_template('user_list.html', users=users)
 
@@ -490,6 +680,24 @@ def user_list():
 @app.route('/upload', methods=['POST'])
 @login_required
 def upload_file():
+    """
+    Handle file uploads for both public and private messages.
+    
+    Form fields:
+        - file: The uploaded file
+        - recipient_id: Target user ID for private file sharing (optional)
+        
+    Returns:
+        JSON: Success status with filename, or error message
+        
+    Note:
+        - Validates file types against ALLOWED_EXTENSIONS
+        - Secures filenames and adds timestamp prefix
+        - Creates message records for file sharing
+        - Supports both public and private file sharing
+        - Sends real-time notifications via SocketIO
+        - Updates conversation records for private files
+    """
     if 'file' not in request.files:
         return jsonify({'error': 'No file selected'}), 400
     
@@ -569,7 +777,22 @@ def upload_file():
 @app.route('/messages')
 @login_required
 def get_messages():
-    """Return all public messages with profile pictures."""
+    """
+    API endpoint to retrieve all public messages with user profile information.
+    
+    Returns:
+        JSON: Array of public message objects with:
+            - Message content and metadata
+            - Sender information (display_name, username)
+            - Profile picture URLs
+            - Timestamps and message IDs
+            
+    Note:
+        - Only returns non-private messages
+        - Includes complete user profile data for frontend display
+        - Orders messages chronologically
+        - Provides both 'text' and 'message' fields for compatibility
+    """
     messages = Message.query.filter_by(is_private=False).order_by(Message.timestamp.asc()).all()
     result = []
     for msg in messages:
@@ -582,7 +805,7 @@ def get_messages():
             'timestamp': msg.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
             'is_private': False,
             'sender_id': msg.sender_id,
-            'profile_pic': url_for('static', filename=f'profile_pics/{msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else "default.jpg"}'),
+            'profile_pic': msg.sender.profile_pic if (msg.sender and msg.sender.profile_pic and msg.sender.profile_pic != 'default.jpg') else None,
             'avatar': url_for('static', filename=f'profile_pics/{msg.sender.profile_pic if msg.sender and msg.sender.profile_pic else "default.jpg"}')
         })
     return jsonify(result)
@@ -590,7 +813,18 @@ def get_messages():
 @app.route('/pinned_messages')
 @login_required
 def get_pinned_messages():
-    """Return all pinned messages with profile pictures."""
+    """
+    API endpoint to retrieve all pinned public messages for admin users.
+    
+    Returns:
+        JSON: Array of pinned message objects with complete user profile data
+        
+    Note:
+        - Only returns pinned, non-private messages
+        - Orders by most recent first
+        - Includes profile pictures and user information
+        - Used by admin interface for managing pinned content
+    """
     pinned = Message.query.filter_by(pinned=True, is_private=False).order_by(Message.timestamp.desc()).all()
     result = []
     for msg in pinned:
@@ -611,36 +845,79 @@ def get_pinned_messages():
 
 @socketio.on('connect')
 def handle_connect():
-    """Handle user connection and broadcast online users."""
+    """
+    Handle WebSocket connection from authenticated users.
+    
+    Actions performed:
+        - Adds user to online users tracking
+        - Joins user to their personal notification room
+        - Broadcasts updated online users list to all clients
+        - Logs connection for debugging
+        
+    Note:
+        - Only processes connections from authenticated users
+        - Personal rooms enable targeted private messaging
+        - Online users list updates in real-time across all clients
+    """
     if current_user.is_authenticated:
-        join_room(f"user_{current_user.id}")
-        user_sid_map[current_user.id] = request.sid
+        # Add user to online users
         online_users[current_user.id] = {
             'id': current_user.id,
             'username': current_user.username,
             'display_name': current_user.display_name,
-            'profile_pic': url_for('static', filename=f'profile_pics/{current_user.profile_pic or "default.jpg"}')
+            'profile_pic': current_user.profile_pic if (current_user.profile_pic and current_user.profile_pic != 'default.jpg') else None
         }
-        # Initialize user location
-        user_locations[current_user.id] = 'unknown'
+        
+        # Join user to their personal room
+        join_room(f'user_{current_user.id}')
+        
+        # Broadcast updated online users list
         emit('online_users', list(online_users.values()), broadcast=True)
-        print(f'✅ User {current_user.id} ({current_user.username}) connected')
+        
+        print(f"✅ User {current_user.username} connected - {len(online_users)} users online")
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    """Handle user disconnection and broadcast online users."""
+    """
+    Handle WebSocket disconnection from authenticated users.
+    
+    Actions performed:
+        - Removes user from online users tracking
+        - Removes user from their personal notification room
+        - Broadcasts updated online users list to remaining clients
+        - Logs disconnection for debugging
+        
+    Note:
+        - Automatically cleans up user presence data
+        - Updates online status for all remaining connected users
+    """
     if current_user.is_authenticated:
-        leave_room(f"user_{current_user.id}")
-        user_sid_map.pop(current_user.id, None)
-        online_users.pop(current_user.id, None)
-        # Remove user from location tracking
-        user_locations.pop(current_user.id, None)
+        # Remove user from online users
+        if current_user.id in online_users:
+            del online_users[current_user.id]
+        
+        # Leave user's personal room
+        leave_room(f'user_{current_user.id}')
+        
+        # Broadcast updated online users list
         emit('online_users', list(online_users.values()), broadcast=True)
-        print(f'❌ User {current_user.id} ({current_user.username}) disconnected')
+        
+        print(f"❌ User {current_user.username} disconnected - {len(online_users)} users online")
 
 @socketio.on('user_location')
 def handle_user_location(data):
-    """Track which page/chat the user is currently on"""
+    """
+    Track which page or chat interface the user is currently viewing.
+    
+    Args:
+        data (dict): Contains 'location' key with current page/chat identifier
+        
+    Note:
+        - Used for intelligent notification routing
+        - Helps prevent notifications when user is already viewing the content
+        - Supports location values: 'public_chat', 'private_chat', etc.
+        - Enables context-aware notification delivery
+    """
     if not current_user.is_authenticated:
         return
         
@@ -650,17 +927,49 @@ def handle_user_location(data):
 
 @socketio.on('join_user_room')
 def handle_join_user_room():
-    """Join user to their personal notification room"""
-    if not current_user.is_authenticated:
-        return
+    """
+    Explicitly join user to their personal notification room and update online status.
+    
+    Actions performed:
+        - Joins user to their personal room (user_<id>)
+        - Updates online users tracking with current user data
+        - Broadcasts refreshed online users list
+        - Logs the room joining event
         
-    room = f'user_{current_user.id}'
-    join_room(room)
-    print(f"🏠 User {current_user.id} ({current_user.username}) joined notification room: {room}")
+    Note:
+        - Used when users explicitly want to ensure they're receiving notifications
+        - Refreshes user data in online tracking (display name, profile pic)
+        - Complements automatic room joining on connection
+    """
+    if current_user.is_authenticated:
+        join_room(f'user_{current_user.id}')
+        
+        # Update online users when they explicitly join
+        online_users[current_user.id] = {
+            'id': current_user.id,
+            'username': current_user.username,
+            'display_name': current_user.display_name,
+            'profile_pic': current_user.profile_pic if (current_user.profile_pic and current_user.profile_pic != 'default.jpg') else None
+        }
+        
+        # Send updated online users list
+        emit('online_users', list(online_users.values()), broadcast=True)
+        print(f"👥 {current_user.username} joined user room - Broadcasting online users")
 
 @socketio.on('join_private_room')
 def handle_join_private_room(data):
-    """Join private chat room between two users"""
+    """
+    Join a specific private chat room for real-time messaging between two users.
+    
+    Args:
+        data (dict): Contains 'user1_id' and 'user2_id' for the private conversation
+        
+    Note:
+        - Room names follow pattern: 'private_<min_id>_<max_id>'
+        - Enables real-time private messaging between specific users
+        - Used when users navigate to private chat interfaces
+        - Automatically orders user IDs to ensure consistent room naming
+    """
     if not current_user.is_authenticated:
         return
         
@@ -670,10 +979,45 @@ def handle_join_private_room(data):
     join_room(room)
     print(f"💬 User {current_user.id} ({current_user.username}) joined private room: {room}")
 
+@socketio.on('get_online_users')
+def handle_get_online_users():
+    """
+    Send current online users list to the requesting client.
+    
+    Response:
+        - Emits 'online_users' event with array of online user objects
+        - Each user object contains: id, username, display_name, profile_pic
+        
+    Note:
+        - Used for refreshing online users display
+        - Only sends to the requesting client (not broadcast)
+        - Logs the request for debugging purposes
+    """
+    if current_user.is_authenticated:
+        emit('online_users', list(online_users.values()))
+        print(f"📊 Sent online users list to {current_user.username}: {len(online_users)} users")
+
 # Update your handle_private_message function in app.py
 @socketio.on('private_message')
 def handle_private_message(data):
-    """Handle private messages (alternative handler)"""
+    """
+    Handle private message sending between users (alternative handler).
+    
+    Args:
+        data (dict): Contains 'recipient_id' and 'message' for private messaging
+        
+    Actions performed:
+        - Creates private message record in database
+        - Updates conversation timestamp and last message
+        - Sends real-time message to both sender and recipient
+        - Triggers push notification to recipient
+        - Logs the private message event
+        
+    Note:
+        - Alternative to 'send_private_message' handler for compatibility
+        - Includes complete user profile data in message
+        - Updates conversation records for chat history
+    """
     if not current_user.is_authenticated:
         return
         
@@ -732,7 +1076,25 @@ def handle_private_message(data):
 # Replace your existing send_message handler with this one:
 @socketio.on('send_message')
 def handle_send_message(data):
-    """Handle public messages - this is the main handler for public chat"""
+    """
+    Handle public message sending to the main chat room.
+    
+    Args:
+        data (dict): Contains 'text' field with the message content
+        
+    Actions performed:
+        - Validates message content (non-empty)
+        - Creates public message record (recipient_id = None)
+        - Broadcasts message to all connected users
+        - Sends notifications to users not currently in public chat
+        - Logs the public message event
+        
+    Note:
+        - This is the main handler for public chat messages
+        - Includes complete user profile data for display
+        - Provides both 'text' and 'message' fields for frontend compatibility
+        - Context-aware notifications based on user location tracking
+    """
     if not current_user.is_authenticated:
         return
     
@@ -785,7 +1147,30 @@ def handle_send_message(data):
 # Add send_private_message handler after the other message handlers
 @socketio.on('send_private_message')
 def handle_send_private_message(data):
-    """Handle private messages"""
+    """
+    Handle private message sending with comprehensive error handling.
+    
+    Args:
+        data (dict): Contains 'recipient_id' and 'text'/'message' fields
+        
+    Actions performed:
+        - Validates recipient and message content
+        - Creates private message record in database
+        - Updates conversation metadata (last message, timestamp)
+        - Sends real-time message to both participants
+        - Triggers push notification to recipient
+        - Logs the private messaging event
+        
+    Error handling:
+        - Validates required fields presence
+        - Sends error messages for missing data
+        - Handles database transaction failures
+        
+    Note:
+        - Primary handler for private messaging functionality
+        - Supports both 'text' and 'message' field names for compatibility
+        - Includes complete user profile data for message display
+    """
     if not current_user.is_authenticated:
         return
     
@@ -842,12 +1227,37 @@ def handle_send_private_message(data):
 # Also add these alternative handlers in case your frontend uses different event names:
 @socketio.on('message')
 def handle_message(data):
-    """Alternative handler for public messages"""
+    """
+    Alternative handler for public messages using 'message' event name.
+    
+    Args:
+        data: Message data to be processed
+        
+    Returns:
+        Delegates to handle_send_message for consistent processing
+        
+    Note:
+        - Provides compatibility with different frontend implementations
+        - Ensures all message events are processed consistently
+    """
     return handle_send_message(data)
 
 @socketio.on('new_message')  
 def handle_new_message(data):
-    """Another alternative handler for public messages"""
+    """
+    Alternative handler for public messages using 'new_message' event name.
+    
+    Args:
+        data: Message data (string or dict) to be processed
+        
+    Returns:
+        Delegates to handle_send_message for consistent processing
+        
+    Note:
+        - Handles both string and dict message formats
+        - Converts string messages to dict format automatically
+        - Provides compatibility with various frontend implementations
+    """
     if isinstance(data, str):
         # If data is just a string, convert to dict
         data = {'text': data}
@@ -855,13 +1265,48 @@ def handle_new_message(data):
 
 @socketio.on('send_public_message')
 def handle_send_public_message(data):
-    """Explicit public message handler"""
+    """
+    Explicit handler for public messages using 'send_public_message' event name.
+    
+    Args:
+        data: Message data to be processed
+        
+    Returns:
+        Delegates to handle_send_message for consistent processing
+        
+    Note:
+        - Provides explicit naming for public message sending
+        - Ensures all public message events use the same processing logic
+    """
     return handle_send_message(data)
 
 # --- Pin/unpin message events ---
 @socketio.on('pin_message')
 def handle_pin_message(data):
-    """Allow admin to pin a message."""
+    """
+    Allow admin users to pin important public messages.
+    
+    Args:
+        data (dict): Contains 'message_id' of the message to pin
+        
+    Actions performed:
+        - Validates admin permissions
+        - Validates message existence and public status
+        - Updates message pinned status in database
+        - Broadcasts pin update to all users
+        - Logs the pinning action
+        
+    Error handling:
+        - Rejects non-admin users
+        - Validates message ID presence
+        - Prevents pinning private messages
+        - Sends appropriate error messages
+        
+    Note:
+        - Only public messages can be pinned
+        - Pinned messages appear in special admin interface
+        - Real-time updates across all connected clients
+    """
     if not (current_user.is_authenticated and current_user.is_admin):
         emit('error', {'message': 'Admin access required'})
         return
@@ -883,7 +1328,30 @@ def handle_pin_message(data):
 
 @socketio.on('unpin_message')
 def handle_unpin_message(data):
-    """Handle unpinning a message"""
+    """
+    Allow admin users to unpin previously pinned messages.
+    
+    Args:
+        data (dict): Contains 'message_id' of the message to unpin
+        
+    Actions performed:
+        - Validates admin permissions
+        - Validates message existence
+        - Updates message pinned status to False in database
+        - Broadcasts unpin update to all users
+        - Logs the unpinning action
+        
+    Error handling:
+        - Rejects non-admin users
+        - Validates message ID presence
+        - Handles non-existent messages gracefully
+        - Sends appropriate error/success messages
+        
+    Note:
+        - Removes message from pinned messages display
+        - Real-time updates across all connected clients
+        - Complements pin_message functionality
+    """
     if not (current_user.is_authenticated and current_user.is_admin):
         emit('error', {'message': 'Admin access required'})
         return
@@ -908,7 +1376,22 @@ def handle_unpin_message(data):
 
 @socketio.on('user_joined')
 def handle_user_joined():
-    """Broadcast a system message when a user joins."""
+    """
+    Broadcast a system message when a user joins the chat.
+    
+    Actions performed:
+        - Creates system-generated welcome message
+        - Broadcasts join announcement to all users
+        - Includes user's display name or username
+        - Uses system profile for message display
+        - Logs the user join event
+        
+    Note:
+        - Only triggered for authenticated users
+        - Creates friendly welcome atmosphere
+        - Uses consistent system message formatting
+        - Includes timestamp for message history
+    """
     if current_user.is_authenticated:
         join_message_data = {
             'system': True,
@@ -923,7 +1406,28 @@ def handle_user_joined():
 
 @socketio.on('typing')
 def handle_typing(data):
-    """Handle typing indicators for real-time feedback"""
+    """
+    Handle real-time typing indicators for enhanced user experience.
+    
+    Args:
+        data (dict): Contains typing state and context information:
+            - chat_type: 'public' or 'private'
+            - recipient_id: Target user for private chat typing
+            - is_typing: Boolean indicating typing state
+            
+    Actions performed:
+        - Validates user authentication
+        - Determines appropriate recipients based on chat type
+        - Broadcasts typing indicators to relevant users
+        - Excludes sender from receiving their own typing indicator
+        - Logs typing events for debugging
+        
+    Note:
+        - Supports both public and private chat typing indicators
+        - Real-time feedback improves conversation flow
+        - Includes user identification and display names
+        - Automatically handles recipient targeting
+    """
     if not current_user.is_authenticated:
         return
     
@@ -950,7 +1454,23 @@ def handle_typing(data):
 
 @socketio.on('heartbeat')
 def handle_heartbeat():
-    """Handle heartbeat for connection monitoring"""
+    """
+    Handle connection monitoring heartbeat from clients.
+    
+    Actions performed:
+        - Validates user authentication
+        - Responds with timestamped heartbeat acknowledgment
+        - Enables client-side connection quality monitoring
+        
+    Response:
+        - Emits 'heartbeat_response' with current server timestamp
+        
+    Note:
+        - Used for connection latency measurement
+        - Helps detect connection quality issues
+        - Enables automatic reconnection logic
+        - Only responds to authenticated users
+    """
     if current_user.is_authenticated:
         emit('heartbeat_response', {'timestamp': datetime.now().isoformat()})
 
@@ -969,7 +1489,26 @@ admin.add_view(AdminModelView(Conversation, db.session))
 
 # --- Create admin user ---
 def create_admin_user():
-    """Create admin user if it doesn't exist"""
+    """
+    Create default admin user if it doesn't exist in the database.
+    
+    Environment Variables:
+        - ADMIN_USERNAME: Admin username (default: 'admin')
+        - ADMIN_PASSWORD: Admin password (default: 'admin123')
+        - ADMIN_EMAIL: Admin email (default: 'admin@chattrix.com')
+        
+    Actions performed:
+        - Checks if admin user already exists
+        - Creates new admin user with environment-specified credentials
+        - Sets admin privileges (is_admin=True)
+        - Hashes password securely using PBKDF2-SHA256
+        - Logs admin user creation for security tracking
+        
+    Note:
+        - Only creates user if one doesn't exist with the specified username
+        - Shows password in development mode for convenience
+        - Uses secure password hashing for production safety
+    """
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
     admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
     admin_email = os.environ.get('ADMIN_EMAIL', 'admin@chattrix.com')
@@ -993,17 +1532,71 @@ with app.app_context():
     migrate_database()
     create_admin_user()
 
-# --- Application entry point ---
+# Replace the last section of your app.py (from "if __name__ == '__main__':")
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    host = os.environ.get('HOST', '0.0.0.0')
-    debug = config_name == 'development'
+    print('🚀 Starting Chattrix application...')
     
-    print(f"Starting Chattrix in {config_name} mode...")
-    print(f"Server: http://{host}:{port}")
+    # Get configuration
+    config_name = os.environ.get('FLASK_ENV', 'development')
+    print(f'📋 Using configuration: {config_name}')
     
-    socketio.run(app, 
-                host=host, 
-                port=port, 
-                debug=debug,
-                use_reloader=debug)
+    try:
+        # Initialize database and admin user
+        with app.app_context():
+            print('🔧 Initializing database...')
+            db.create_all()
+            migrate_database()
+            create_admin_user()
+            print('✅ Database initialization complete')
+        
+        # Configuration for local development
+        port = int(os.environ.get('PORT', 5000))
+        
+        # Use 127.0.0.1 for local development, 0.0.0.0 for production
+        if config_name == 'development':
+            host = '127.0.0.1'
+            debug = True
+        else:
+            host = '0.0.0.0'
+            debug = False
+        
+        print(f'🌐 Starting server at http://{host}:{port}')
+        print(f'🔧 Debug mode: {debug}')
+        print(f'📍 Visit: http://127.0.0.1:{port}')
+        
+        # Start the SocketIO server
+        socketio.run(app, 
+                    host=host, 
+                    port=port, 
+                    debug=debug,
+                    use_reloader=False,  # Disable reloader to prevent double startup
+                    log_output=True)
+        
+    except Exception as e:
+        print(f'❌ Error starting application: {e}')
+        import traceback
+        traceback.print_exc()
+        input('Press Enter to continue...')  # Keep window open to see error
+
+# =========================
+# END OF CHATTRIX APPLICATION
+# =========================
+# 
+# This file contains the complete Chattrix real-time messaging application
+# with comprehensive documentation and comments describing:
+# 
+# - Application factory pattern for flexible deployment
+# - Database models and migration system for schema updates
+# - User authentication and authorization with Flask-Login
+# - Real-time messaging with optimized SocketIO configuration
+# - Push notification system with VAPID key support
+# - File upload and sharing functionality with security measures
+# - Admin interface for message management and user administration
+# - Private messaging system with conversation tracking
+# - Connection monitoring and user presence tracking
+# 
+# All functions and classes have been documented with:
+# - Clear purpose descriptions
+# - Parameter and return value documentation
+# - Usage notes and important considerations
+# - Error handling and security implications
