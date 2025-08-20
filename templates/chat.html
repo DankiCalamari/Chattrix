@@ -48,6 +48,7 @@
     <div class="main-content">
         
         <div class="main-header">
+            <button class="mobile-menu-btn" onclick="toggleMobileMenu()">☰</button>
             <h1 class="main-title">Public Chat</h1>
             {% if current_user.is_admin %}
                 <div class="main-controls">
@@ -56,6 +57,12 @@
                     </button>
                     <button id="testPushBtn" class="btn btn-info">
                         Test Push Notification
+                    </button>
+                    <button id="pushStatusBtn" class="btn btn-warning">
+                        Check Push Status
+                    </button>
+                    <button id="testBrowserBtn" class="btn btn-success">
+                        Test Browser Notification
                     </button>
                 </div>
             {% endif %}
@@ -108,7 +115,7 @@
 
 <!-- Load Socket.IO and our script -->
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="{{ url_for('static', filename='script.js') }}?v={{ range(1000000000, 9999999999) | random }}"></script>
 
 <script>
     // Set global variables for the external script
@@ -485,5 +492,411 @@
 .dark-mode .typing-text {
     color: var(--dark-text-muted, #a0aec0);
 }
+
+/* Mobile menu button - hidden by default */
+.mobile-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 8px;
+    color: var(--text-color, #333);
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.mobile-menu-btn:hover {
+    background: var(--hover-bg, rgba(0, 0, 0, 0.1));
+}
+
+.dark-mode .mobile-menu-btn {
+    color: var(--dark-text-color, #e2e8f0);
+}
+
+.dark-mode .mobile-menu-btn:hover {
+    background: var(--dark-hover-bg, rgba(255, 255, 255, 0.1));
+}
+
+/* Desktop layout - ensure title has proper spacing */
+.main-header .main-title {
+    text-align: center;
+    margin: 0;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+        height: 100vh;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        width: 280px;
+        height: 100vh;
+        z-index: 1000;
+        transition: left 0.3s ease;
+        overflow-y: auto;
+    }
+
+    .sidebar.mobile-open {
+        left: 0;
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .sidebar-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .main-content {
+        width: 100%;
+        margin-left: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+    }
+
+    .main-header {
+        padding: 10px 15px;
+        border-bottom: 1px solid var(--border-color, #dee2e6);
+        flex-shrink: 0;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mobile-menu-btn {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 5px;
+        color: var(--text-color, #333);
+        display: block !important;
+        z-index: 1001;
+    }
+
+    .main-title {
+        text-align: center;
+        margin: 0;
+        font-size: 1.2rem;
+        padding-left: 50px; /* Space for menu button */
+        padding-right: 50px; /* Space for any right content */
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .main-controls {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        width: 100%;
+        padding: 0 15px;
+        box-sizing: border-box;
+    }
+
+    .main-controls .btn {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+    }
+
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .message {
+        margin-bottom: 10px;
+        padding: 8px;
+    }
+
+    .message-avatar {
+        margin-right: 8px;
+    }
+
+    .avatar-img {
+        width: 32px;
+        height: 32px;
+    }
+
+    .username {
+        font-size: 0.9rem;
+    }
+
+    .timestamp {
+        font-size: 0.75rem;
+    }
+
+    .message-content {
+        font-size: 0.9rem;
+        line-height: 1.3;
+    }
+
+    .message-form-container {
+        flex-shrink: 0;
+        padding: 10px;
+        background: var(--bg-color, #fff);
+        border-top: 1px solid var(--border-color, #dee2e6);
+    }
+
+    .message-form {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .file-upload-btn {
+        padding: 10px;
+        font-size: 1.1rem;
+        min-width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .message-input {
+        flex: 1;
+        padding: 12px;
+        font-size: 16px; /* Prevents zoom on iOS */
+        border-radius: 20px;
+        min-height: 44px;
+        box-sizing: border-box;
+    }
+
+    .send-btn {
+        padding: 12px 16px;
+        min-width: 44px;
+        height: 44px;
+        font-size: 0.9rem;
+    }
+
+    .online-users {
+        margin-top: 15px;
+        padding: 12px;
+    }
+
+    .online-users-title {
+        font-size: 0.9rem;
+    }
+
+    .online-user {
+        padding: 6px;
+        margin-bottom: 3px;
+    }
+
+    .online-user-avatar {
+        width: 28px;
+        height: 28px;
+        margin-right: 8px;
+    }
+
+    .online-user-name {
+        font-size: 0.9rem;
+    }
+
+    .online-status {
+        font-size: 0.75rem;
+    }
+
+    .typing-indicator {
+        margin: 5px 10px;
+        padding: 8px;
+    }
+
+    .connection-status {
+        top: 5px;
+        right: 5px;
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+
+    /* Pinned messages mobile */
+    .pinned-messages {
+        margin: 10px;
+        padding: 10px;
+    }
+
+    .pinned-header h3 {
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    /* Dark mode mobile adjustments */
+    .dark-mode .main-header {
+        border-bottom-color: var(--dark-border-color, #4a5568);
+        background: var(--dark-bg-color, #1a202c);
+    }
+
+    .dark-mode .mobile-menu-btn {
+        color: var(--dark-text-color, #e2e8f0);
+    }
+
+    .dark-mode .message-form-container {
+        background: var(--dark-bg-color, #1a202c);
+        border-top-color: var(--dark-border-color, #4a5568);
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+    .sidebar {
+        width: 100%;
+        left: -100%;
+    }
+
+    .main-title {
+        font-size: 1rem;
+        padding-left: 45px; /* Adjust for smaller screen */
+        padding-right: 15px;
+    }
+
+    .main-controls {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .main-controls .btn {
+        width: 100%;
+        font-size: 0.75rem;
+        padding: 5px 10px;
+    }
+
+    .message {
+        padding: 6px;
+    }
+
+    .avatar-img {
+        width: 28px;
+        height: 28px;
+    }
+
+    .username {
+        font-size: 0.85rem;
+    }
+
+    .message-content {
+        font-size: 0.85rem;
+    }
+
+    .message-form {
+        gap: 6px;
+    }
+
+    .file-upload-btn {
+        padding: 8px;
+        min-width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+
+    .message-input {
+        padding: 10px;
+        min-height: 40px;
+        border-radius: 18px;
+    }
+
+    .send-btn {
+        padding: 10px 12px;
+        min-width: 40px;
+        height: 40px;
+        font-size: 0.8rem;
+    }
+
+    .online-users {
+        padding: 8px;
+    }
+
+    .online-user-avatar {
+        width: 24px;
+        height: 24px;
+        margin-right: 6px;
+    }
+
+    .online-user-name {
+        font-size: 0.8rem;
+    }
+}
+
+/* Landscape mobile orientation */
+@media (max-width: 768px) and (orientation: landscape) {
+    .messages-container {
+        height: calc(100vh - 120px);
+    }
+
+    .sidebar {
+        width: 250px;
+    }
+}
+
+/* Touch-friendly improvements */
+@media (pointer: coarse) {
+    .file-upload-btn,
+    .send-btn,
+    .online-user.clickable,
+    .pin-btn,
+    .unpin-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .message-input {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
 </style>
+
+<!-- Mobile menu toggle script -->
+<script>
+function toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.querySelector('.sidebar-overlay') || createOverlay();
+    
+    sidebar.classList.toggle('mobile-open');
+    overlay.classList.toggle('active');
+}
+
+function createOverlay() {
+    const overlay = document.createElement('div');
+    overlay.className = 'sidebar-overlay';
+    overlay.onclick = toggleMobileMenu;
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+// Close mobile menu when clicking overlay
+document.addEventListener('DOMContentLoaded', function() {
+    const overlay = document.querySelector('.sidebar-overlay');
+    if (overlay) {
+        overlay.onclick = toggleMobileMenu;
+    }
+});
+</script>
 {% endblock %}

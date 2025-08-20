@@ -114,6 +114,9 @@ const otherUserName = "{{ other_user.display_name or other_user.username }}";
 window.currentUserId = {{ current_user.id }};
 window.isAdmin = {{ 'true' if current_user.is_admin else 'false' }};
 
+// File upload state for private chat
+let selectedPrivateFile = null;
+
 // Join private room when connected
 socket.on('connect', function() {
     console.log('Connected to server');
@@ -132,7 +135,12 @@ document.getElementById('privateMessageForm').addEventListener('submit', functio
     const messageInput = document.getElementById('privateMsgInput');
     const message = messageInput.value.trim();
     
-    if (message) {
+    // Check if there's a file selected
+    if (selectedPrivateFile) {
+        // Upload file
+        uploadPrivateFile(selectedPrivateFile);
+    } else if (message) {
+        // Send text message
         console.log('Sending private message:', message);
         
         // Send via Socket.IO
@@ -172,7 +180,7 @@ function displayPrivateMessage(data) {
                 <span class="message-author">${authorName}</span>
                 <span class="message-time">${new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
-            <div class="message-text">${data.message || data.text}</div>
+            <div class="message-text">${processFileMessage(data.message || data.text)}</div>
         </div>
     `;
     
@@ -184,6 +192,9 @@ function displayPrivateMessage(data) {
 document.addEventListener('DOMContentLoaded', function() {
     const messagesContainer = document.getElementById('privateMessages');
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // Initialize file upload for private chat
+    initializePrivateFileUpload();
     
     // Dark mode toggle
     const darkModeToggle = document.getElementById('darkModeToggle');
@@ -219,5 +230,298 @@ document.getElementById('privateMsgInput').addEventListener('keypress', function
 socket.on('connect', () => console.log('Socket connected'));
 socket.on('disconnect', () => console.log('Socket disconnected'));
 socket.on('error', (error) => console.error('Socket error:', error));
+
+// Initialize private file upload functionality
+function initializePrivateFileUpload() {
+    const privateFileInput = document.getElementById('private-file-input');
+    if (privateFileInput) {
+        privateFileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            selectedPrivateFile = file;
+            showFilePreview(file, 'private');
+        });
+    }
+}
+
+// Show file preview function (simplified for private chat)
+function showFilePreview(file, chatType) {
+    const isImage = file.type.startsWith('image/');
+    const messageForm = document.getElementById('privateMessageForm');
+    
+    if (!messageForm) return;
+    
+    // Remove existing preview
+    const existingPreview = messageForm.querySelector('.file-preview');
+    if (existingPreview) {
+        existingPreview.remove();
+    }
+    
+    // Create preview container
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'file-preview';
+    
+    if (isImage) {
+        // Create image preview
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewContainer.innerHTML = `
+                <div class="file-preview-content">
+                    <div class="file-preview-image-container">
+                        <img src="${e.target.result}" class="file-preview-image" alt="${file.name}">
+                    </div>
+                    <div class="file-preview-info">
+                        <span class="file-preview-name">${file.name}</span>
+                        <span class="file-preview-size">${formatFileSize(file.size)}</span>
+                    </div>
+                    <button type="button" class="file-preview-remove" onclick="removeFilePreview('private')">×</button>
+                </div>
+            `;
+        };
+        reader.readAsDataURL(file);
+    } else {
+        // Create file preview for non-images
+        const fileIcon = getFileIcon(file.name.split('.').pop().toLowerCase());
+        previewContainer.innerHTML = `
+            <div class="file-preview-content">
+                <div class="file-preview-file">
+                    <span class="file-preview-icon">${fileIcon}</span>
+                    <div class="file-preview-info">
+                        <span class="file-preview-name">${file.name}</span>
+                        <span class="file-preview-size">${formatFileSize(file.size)}</span>
+                    </div>
+                </div>
+                <button type="button" class="file-preview-remove" onclick="removeFilePreview('private')">×</button>
+            </div>
+        `;
+    }
+    
+    // Insert preview before the input row
+    const inputRow = messageForm.querySelector('.message-input') || messageForm.querySelector('input[type="text"]');
+    if (inputRow) {
+        inputRow.parentNode.insertBefore(previewContainer, inputRow);
+    }
+}
+
+// Remove file preview
+function removeFilePreview(chatType) {
+    selectedPrivateFile = null;
+    document.getElementById('private-file-input').value = '';
+    const preview = document.querySelector('#privateMessageForm .file-preview');
+    if (preview) preview.remove();
+}
+
+// Format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Upload private file
+function uploadPrivateFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('recipient_id', otherUserId);
+    
+    // Show upload indicator
+    showUploadProgress('Uploading file...');
+    
+    fetch('/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideUploadProgress();
+        if (data.success) {
+            console.log('Private file uploaded successfully:', data.filename);
+            
+            // Clear the file selection and preview
+            removeFilePreview('private');
+        } else {
+            showErrorMessage('Upload failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        hideUploadProgress();
+        console.error('Upload error:', error);
+        showErrorMessage('Upload failed: ' + error.message);
+    });
+}
+
+// Handle private file upload
+function handlePrivateFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('recipient_id', otherUserId);
+    
+    // Show upload indicator
+    showUploadProgress('Uploading file...');
+    
+    fetch('/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideUploadProgress();
+        if (data.success) {
+            console.log('Private file uploaded successfully:', data.filename);
+            // The server will emit the message via SocketIO automatically
+        } else {
+            showErrorMessage('Upload failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        hideUploadProgress();
+        console.error('Upload error:', error);
+        showErrorMessage('Upload failed: ' + error.message);
+    })
+    .finally(() => {
+        // Clear the file input
+        event.target.value = '';
+    });
+}
+
+// Process file messages for display in private chat
+function processFileMessage(text) {
+    // Check if this is a file message with format [FILE:filename:original_filename]
+    const fileMatch = text.match(/^\[FILE:([^:]+):(.+)\]$/);
+    if (fileMatch) {
+        const [, filename, originalFilename] = fileMatch;
+        const fileExtension = originalFilename.toLowerCase().split('.').pop();
+        
+        // Determine if it's an image
+        const imageExtensions = ['png', 'jpg', 'jpeg', 'gif'];
+        const isImage = imageExtensions.includes(fileExtension);
+        
+        if (isImage) {
+            return `
+                <div class="file-message image-message">
+                    <img src="/static/uploads/${filename}" alt="${originalFilename}" class="uploaded-image" 
+                         onclick="openImageModal(this.src, '${originalFilename}')">
+                    <div class="file-info">
+                        <span class="file-icon">🖼️</span>
+                        <span class="file-name">${originalFilename}</span>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Non-image file
+            const fileIcon = getFileIcon(fileExtension);
+            return `
+                <div class="file-message">
+                    <a href="/static/uploads/${filename}" target="_blank" download="${originalFilename}" class="file-link">
+                        <span class="file-icon">${fileIcon}</span>
+                        <span class="file-name">${originalFilename}</span>
+                        <span class="file-action">📥 Download</span>
+                    </a>
+                </div>
+            `;
+        }
+    }
+    
+    return text; // Return original text if not a file message
+}
+
+// Get appropriate icon for file type
+function getFileIcon(extension) {
+    const iconMap = {
+        'pdf': '📄',
+        'txt': '📝',
+        'docx': '📄',
+        'doc': '📄',
+        'mp4': '🎥',
+        'avi': '🎥',
+        'mov': '🎥',
+        'zip': '📦',
+        'rar': '📦'
+    };
+    
+    return iconMap[extension] || '📎';
+}
+
+// Show upload progress indicator
+function showUploadProgress(message) {
+    let indicator = document.getElementById('upload-indicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'upload-indicator';
+        indicator.className = 'upload-indicator';
+        indicator.innerHTML = `
+            <div class="upload-content">
+                <div class="upload-spinner"></div>
+                <span class="upload-text">${message}</span>
+            </div>
+        `;
+        document.body.appendChild(indicator);
+    } else {
+        indicator.querySelector('.upload-text').textContent = message;
+    }
+    indicator.style.display = 'flex';
+}
+
+// Hide upload progress indicator
+function hideUploadProgress() {
+    const indicator = document.getElementById('upload-indicator');
+    if (indicator) {
+        indicator.style.display = 'none';
+    }
+}
+
+// Show error message
+function showErrorMessage(message) {
+    let errorDiv = document.getElementById('error-message');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'error-message';
+        errorDiv.className = 'error-message';
+        document.body.appendChild(errorDiv);
+    }
+    
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Open image in modal
+function openImageModal(src, filename) {
+    let modal = document.getElementById('image-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'image-modal';
+        modal.className = 'image-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <span class="modal-close">&times;</span>
+                <img class="modal-image" src="" alt="">
+                <div class="modal-caption"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Close modal on click
+        modal.querySelector('.modal-close').onclick = () => modal.style.display = 'none';
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        };
+    }
+    
+    // Set image and show modal
+    modal.querySelector('.modal-image').src = src;
+    modal.querySelector('.modal-caption').textContent = filename;
+    modal.style.display = 'block';
+}
 </script>
 {% endblock %}

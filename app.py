@@ -1,6 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
-from flask import Flask, render_template, request, session, redirect, url_for, jsonify
+from flask import Flask, render_template, request, session, redirect, url_for, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import send, emit, join_room, leave_room, SocketIO
 from datetime import datetime
@@ -17,6 +17,7 @@ import json
 from pywebpush import webpush, WebPushException
 from dotenv import load_dotenv
 from config import config
+from PIL import Image
 
 
 # Load environment variables
@@ -307,6 +308,44 @@ def get_vapid_public_key():
     """
     return jsonify({'publicKey': VAPID_PUBLIC_KEY})
 
+@app.route('/subscribe-push', methods=['POST'])
+@login_required
+def subscribe_push():
+    """
+    Subscribe a user to push notifications.
+    
+    Expects JSON with 'subscription' containing push subscription data.
+    """
+    try:
+        data = request.get_json()
+        subscription_data = data.get('subscription')
+        
+        if not subscription_data:
+            return jsonify({'error': 'No subscription data provided'}), 400
+        
+        # Remove any existing subscription for this user
+        PushSubscription.query.filter_by(user_id=current_user.id).delete()
+        
+        # Create new subscription
+        subscription = PushSubscription(
+            user_id=current_user.id,
+            endpoint=subscription_data['endpoint'],
+            p256dh=subscription_data['keys']['p256dh'],
+            auth=subscription_data['keys']['auth']
+        )
+        
+        db.session.add(subscription)
+        db.session.commit()
+        
+        print(f"✅ Push subscription saved for user {current_user.id}")
+        print(f"📤 Endpoint: {subscription_data['endpoint'][:100]}...")
+        
+        return jsonify({'success': True, 'message': 'Push subscription saved'})
+        
+    except Exception as e:
+        print(f"❌ Error saving push subscription: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/test-push/<int:user_id>')
 @login_required
 def test_push_notification(user_id):
@@ -329,6 +368,52 @@ def test_push_notification(user_id):
         return jsonify({'success': True, 'message': f'Test notification sent to user {user_id}'})
     else:
         return jsonify({'success': False, 'message': 'Admin access required'}), 403
+
+@app.route('/register-fallback-notifications', methods=['POST'])
+@login_required
+def register_fallback_notifications():
+    """
+    Register user for fallback browser notifications (for localhost testing).
+    """
+    try:
+        data = request.get_json()
+        user_id = current_user.id
+        
+        # For now, just log that the user wants notifications
+        # In a real app, you'd store this preference in the database
+        print(f"✅ User {user_id} registered for fallback notifications")
+        
+        return jsonify({'success': True, 'message': 'Registered for notifications'})
+        
+    except Exception as e:
+        print(f"❌ Error registering fallback notifications: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/test-browser-notification/<int:user_id>')
+@login_required
+def test_browser_notification(user_id):
+    """
+    Test browser notification endpoint (doesn't require push subscription).
+    """
+    if current_user.is_admin or current_user.id == user_id:
+        # Send a socket event that will trigger browser notification
+        socketio.emit('browser_notification', {
+            'title': 'Test Browser Notification',
+            'message': 'This is a test browser notification from Chattrix!',
+            'type': 'test'
+        }, room=f'user_{user_id}')
+        
+        print(f"📤 Browser notification test sent to user {user_id}")
+        return jsonify({'success': True, 'message': f'Test browser notification sent to user {user_id}'})
+    else:
+        return jsonify({'success': False, 'message': 'Access denied'}), 403
+
+@app.route('/push-test')
+def push_test():
+    """
+    Debug page for testing push notifications
+    """
+    return render_template('push_test.html')
 
 
 def send_web_push(user_id, title, body, url='/chat'):
@@ -403,6 +488,31 @@ def allowed_file(filename):
         bool: True if file extension is in ALLOWED_EXTENSIONS, False otherwise
     """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def resize_profile_picture(filepath, max_size=(200, 200)):
+    """
+    Resize and optimize profile picture.
+    
+    Args:
+        filepath (str): Path to the uploaded image file
+        max_size (tuple): Maximum dimensions (width, height)
+    """
+    try:
+        with Image.open(filepath) as img:
+            # Convert to RGB if necessary (handles RGBA, P mode images)
+            if img.mode in ('RGBA', 'P'):
+                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = rgb_img
+            
+            # Resize maintaining aspect ratio
+            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+            
+            # Save optimized image
+            img.save(filepath, 'JPEG', quality=85, optimize=True)
+    except Exception as e:
+        print(f"Error resizing profile picture: {e}")
+        # If resize fails, keep original file
 
 def get_or_create_conversation(user1_id, user2_id):
     """
@@ -580,9 +690,21 @@ def profile():
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
             if file and file.filename and allowed_file(file.filename):
-                filename = secure_filename(f"{current_user.id}_{file.filename}")
+                # Generate secure filename with user ID
+                file_ext = file.filename.rsplit('.', 1)[1].lower()
+                filename = secure_filename(f"{current_user.id}_profile.jpg")  # Always save as jpg after processing
                 filepath = os.path.join(app.config['PROFILE_PICS_FOLDER'], filename)
-                file.save(filepath)
+                
+                # Save original file temporarily
+                temp_path = filepath + '.temp'
+                file.save(temp_path)
+                
+                # Resize and optimize the image
+                resize_profile_picture(temp_path, max_size=(200, 200))
+                
+                # Move processed file to final location
+                os.rename(temp_path, filepath)
+                
                 current_user.profile_pic = filename
 
         db.session.commit()
@@ -765,12 +887,74 @@ def upload_file():
                 'is_private': False,
                 'sender_id': current_user.id,
                 'profile_pic': current_user.profile_pic or 'default.jpg'
-            }, broadcast=True)
+            })
         
         return jsonify({'success': True, 'filename': filename})
         
     except Exception as e:
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+@app.route('/static/uploads/<filename>')
+def uploaded_file(filename):
+    """
+    Serve uploaded files from the uploads directory.
+    
+    Args:
+        filename (str): Name of the file to serve
+        
+    Returns:
+        File: The requested file or 404 if not found
+    """
+    return send_from_directory(app.config['UPLOADS_FOLDER'], filename)
+
+@app.route('/static/profile_pics/<filename>')  
+def profile_pic(filename):
+    """
+    Serve profile pictures from the profile pics directory.
+    
+    Args:
+        filename (str): Name of the profile picture to serve
+        
+    Returns:
+        File: The requested profile picture or 404 if not found
+    """
+    return send_from_directory(app.config['PROFILE_PICS_FOLDER'], filename)
+
+@app.route('/test-upload')
+def test_upload_page():
+    """Test page for file upload functionality without login"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>File Upload Test</title>
+        <link rel="stylesheet" href="/static/style.css">
+    </head>
+    <body>
+        <div style="padding: 20px;">
+            <h1>File Upload Test</h1>
+            <div class="message-form-container">
+                <form id="messageForm" class="message-form">
+                    <label for="file-input" class="file-upload-btn">📎 Select File</label>
+                    <input type="file" id="file-input" accept="image/*,.pdf,.txt,.docx,.mp4" style="display: block; margin: 10px 0;">
+                    <input type="text" id="msgInput" class="message-input" placeholder="Type your message..." style="margin: 10px 0;">
+                    <button type="submit" class="send-btn">Send</button>
+                </form>
+                <button onclick="testFileUpload()" style="margin: 10px 0; background: red; color: white; padding: 10px;">TEST FILE UPLOAD</button>
+            </div>
+        </div>
+        
+        <script src="/static/script.js"></script>
+        <script>
+            // Initialize file uploads when page loads
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Test page loaded, initializing file uploads...');
+                initializeFileUploads();
+            });
+        </script>
+    </body>
+    </html>
+    '''
 
 # --- Message API Routes ---
 
@@ -872,7 +1056,7 @@ def handle_connect():
         join_room(f'user_{current_user.id}')
         
         # Broadcast updated online users list
-        emit('online_users', list(online_users.values()), broadcast=True)
+        emit('online_users', list(online_users.values()))
         
         print(f"✅ User {current_user.username} connected - {len(online_users)} users online")
 
@@ -900,7 +1084,7 @@ def handle_disconnect():
         leave_room(f'user_{current_user.id}')
         
         # Broadcast updated online users list
-        emit('online_users', list(online_users.values()), broadcast=True)
+        emit('online_users', list(online_users.values()))
         
         print(f"❌ User {current_user.username} disconnected - {len(online_users)} users online")
 
@@ -953,7 +1137,7 @@ def handle_join_user_room():
         }
         
         # Send updated online users list
-        emit('online_users', list(online_users.values()), broadcast=True)
+        emit('online_users', list(online_users.values()))
         print(f"👥 {current_user.username} joined user room - Broadcasting online users")
 
 @socketio.on('join_private_room')
@@ -1129,7 +1313,7 @@ def handle_send_message(data):
     }
     
     # Send to all users in public chat
-    emit('receive_message', message_data, broadcast=True)
+    emit('receive_message', message_data)
     
     # Send notifications to users not in public chat
     for user_id, location in user_locations.items():
@@ -1141,6 +1325,14 @@ def handle_send_message(data):
                 'sender': current_user.display_name or current_user.username,
                 'chat_url': url_for('index')
             }, room=f'user_{user_id}')
+            
+            # Send push notification
+            send_web_push(
+                user_id,
+                'New message in Public Chat',
+                f'{current_user.display_name or current_user.username}: {text[:50]}{"..." if len(text) > 50 else ""}',
+                '/chat'
+            )
     
     print(f"📤 Public message sent by {current_user.id}: {text}")
 
@@ -1320,7 +1512,7 @@ def handle_pin_message(data):
     if msg and not msg.is_private:  # Only pin public messages
         msg.pinned = True
         db.session.commit()
-        emit('update_pinned', {'message_id': message_id}, broadcast=True)
+        emit('update_pinned', {'message_id': message_id})
         print(f"📌 Admin {current_user.id} pinned message {message_id}")
         emit('success', {'message': 'Message pinned successfully'})
     else:
@@ -1367,7 +1559,7 @@ def handle_unpin_message(data):
         message.pinned = False
         db.session.commit()
         
-        emit('update_unpinned', {'message_id': message_id}, broadcast=True)
+        emit('update_unpinned', {'message_id': message_id})
         
         print(f"📌 Admin {current_user.id} unpinned message {message_id}")
         emit('success', {'message': 'Message unpinned successfully'})
@@ -1401,7 +1593,7 @@ def handle_user_joined():
             'display_name': 'System',
             'profile_pic': url_for('static', filename='profile_pics/default.jpg')
         }
-        emit('receive_message', join_message_data, broadcast=True)
+        emit('receive_message', join_message_data)
         print(f"👋 {current_user.username} joined the chat")
 
 @socketio.on('typing')
@@ -1448,7 +1640,7 @@ def handle_typing(data):
         emit('user_typing', typing_data, room=f'user_{recipient_id}')
     else:
         # Send typing indicator to all users in public chat
-        emit('user_typing', typing_data, broadcast=True, include_self=False)
+        emit('user_typing', typing_data, include_self=False)
     
     print(f"👤 {current_user.username} {'started' if is_typing else 'stopped'} typing in {chat_type} chat")
 
@@ -1560,17 +1752,54 @@ if __name__ == '__main__':
             host = '0.0.0.0'
             debug = False
         
-        print(f'🌐 Starting server at http://{host}:{port}')
-        print(f'🔧 Debug mode: {debug}')
-        print(f'📍 Visit: http://127.0.0.1:{port}')
+        # Check for HTTPS mode
+        ssl_context = None
+        protocol = 'http'
         
-        # Start the SocketIO server
-        socketio.run(app, 
-                    host=host, 
-                    port=port, 
-                    debug=debug,
-                    use_reloader=False,  # Disable reloader to prevent double startup
-                    log_output=True)
+        # Look for SSL certificates
+        cert_file = 'certs/cert.pem'
+        key_file = 'certs/key.pem'
+        
+        if os.path.exists(cert_file) and os.path.exists(key_file):
+            try:
+                ssl_context = (cert_file, key_file)
+                protocol = 'https'
+                print(f'🔒 SSL certificates found - enabling HTTPS')
+            except Exception as e:
+                print(f'⚠️ SSL certificate error: {e}')
+                print(f'📍 Falling back to HTTP')
+                ssl_context = None
+        
+        print(f'🌐 Starting server at {protocol}://{host}:{port}')
+        print(f'🔧 Debug mode: {debug}')
+        print(f'📍 Visit: {protocol}://127.0.0.1:{port}')
+        
+        if protocol == 'https':
+            print(f'🔒 HTTPS enabled - push notifications should work!')
+        else:
+            print(f'⚠️ HTTP mode - push notifications may require browser flags')
+            print(f'💡 For Chrome: chrome --unsafely-treat-insecure-origin-as-secure=http://localhost:{port}')
+            print(f'💡 For Firefox: Should work directly on localhost')
+        
+        # Start the SocketIO server with proper SSL context handling
+        if ssl_context:
+            # For HTTPS with Flask-SocketIO + eventlet
+            socketio.run(app, 
+                        host=host, 
+                        port=port, 
+                        debug=debug,
+                        certfile=cert_file,
+                        keyfile=key_file,
+                        use_reloader=False,
+                        log_output=True)
+        else:
+            # For HTTP
+            socketio.run(app, 
+                        host=host, 
+                        port=port, 
+                        debug=debug,
+                        use_reloader=False,
+                        log_output=True)
         
     except Exception as e:
         print(f'❌ Error starting application: {e}')

@@ -12,8 +12,8 @@ class Config:
     UPLOADS_FOLDER = os.path.join('static', 'uploads')
     
     # VAPID keys for push notifications
-    VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgA3dGz3rKYLqXI8r8oALzmJJKh6I6yXDMbEa8dOGGo')
-    VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', 'BHpyTs0vPvs6J2qHEIQPQxuzZ-BO3MEdVXMR3CP_AP1LMEZhfUOKIdDstklsqhQ8Tp5XCwGlUfwEuACBXk_EcB8')
+    VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY', 'MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgk1G_g2fw9ue16OEq-OUXGLKrtS7m_ur-IGCeBKzuVuyhRANCAARzgd5E2wmcER-BN-dhz95Qoezig7TFZ-4Yr7fJY-NVuoKT7MXPzcTR3O7SxEsMyCpXmqvNUw1O9-MpYPL_0oy6')
+    VAPID_PUBLIC_KEY = os.environ.get('VAPID_PUBLIC_KEY', 'BHOB3kTbCZwRH4E352HP3lCh7OKDtMVn7hivt8lj41W6gpPsxc_NxNHc7tLESwzIKleaq81TDU734ylg8v_SjLo')
     VAPID_CLAIMS = {"sub": os.environ.get('VAPID_SUBJECT', 'mailto:admin@chattrix.com')}
     
     # Session configuration
