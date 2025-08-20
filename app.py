@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import send, emit, join_room, leave_room, SocketIO
 from datetime import datetime
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
-from flask_admin import Admin
+from flask_admin import Admin, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
@@ -1675,9 +1675,21 @@ class AdminModelView(ModelView):
     def inaccessible_callback(self, name, **kwargs):
         return redirect(url_for('login'))
 
+class PushTestView(BaseView):
+    @expose('/')
+    def index(self):
+        return redirect(url_for('push_test'))
+    
+    def is_accessible(self):
+        return current_user.is_authenticated and getattr(current_user, 'is_admin', False)
+    
+    def inaccessible_callback(self, name, **kwargs):
+        return redirect(url_for('login'))
+
 admin.add_view(AdminModelView(User, db.session))
 admin.add_view(AdminModelView(Message, db.session))
 admin.add_view(AdminModelView(Conversation, db.session))
+admin.add_view(PushTestView(name='Push Test', endpoint='push_test_admin'))
 
 # --- Create admin user ---
 def create_admin_user():
