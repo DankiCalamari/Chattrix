@@ -1247,6 +1247,16 @@ def handle_private_message(data):
     emit('receive_private_message', message_data, room=f"user_{current_user.id}")
     emit('receive_private_message', message_data, room=f"user_{recipient_id}")
     
+    # Send browser notification to recipient
+    emit('notification', {
+        'type': 'private_message',
+        'title': f'Message from {current_user.display_name or current_user.username}',
+        'message': message_text[:100] + ("..." if len(message_text) > 100 else ""),
+        'sender': current_user.display_name or current_user.username,
+        'chat_url': f'/chat/{current_user.id}',
+        'sender_id': current_user.id
+    }, room=f'user_{recipient_id}')
+    
     # Send web push notification to recipient
     send_web_push(
         recipient_id,
@@ -1411,8 +1421,23 @@ def handle_send_private_message(data):
     emit('receive_private_message', message_data, room=f'user_{current_user.id}')
     emit('receive_private_message', message_data, room=f'user_{recipient_id}')
     
+    # Send browser notification to recipient
+    emit('notification', {
+        'type': 'private_message',
+        'title': f'Message from {current_user.display_name or current_user.username}',
+        'message': message_text[:100] + ("..." if len(message_text) > 100 else ""),
+        'sender': current_user.display_name or current_user.username,
+        'chat_url': f'/chat/{current_user.id}',
+        'sender_id': current_user.id
+    }, room=f'user_{recipient_id}')
+    
     # Send push notification to recipient
-    send_web_push(recipient_id, f"Private message from {current_user.username}", message_text)
+    send_web_push(
+        recipient_id, 
+        f"Message from {current_user.display_name or current_user.username}", 
+        message_text[:100] + ("..." if len(message_text) > 100 else ""),
+        f"/chat/{current_user.id}"
+    )
     
     print(f"📤 Private message sent from {current_user.id} to {recipient_id}")
 
