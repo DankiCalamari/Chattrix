@@ -73,8 +73,8 @@ def create_app(strConfigName=None):
     
     # Override database URI for production environment using environment variables
     if strConfigName == 'production':
-        from config import get_database_uri
-        strDatabaseUri = get_database_uri()
+        from config import getDatabaseUri
+        strDatabaseUri = getDatabaseUri()
         objApp.config['SQLALCHEMY_DATABASE_URI'] = strDatabaseUri
         
         # Add SSL configuration only for AWS RDS PostgreSQL connections
