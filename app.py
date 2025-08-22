@@ -93,6 +93,9 @@ def create_app(strConfigName=None):
 strConfigName = os.environ.get('FLASK_ENV', 'development')
 objApp = create_app(strConfigName)
 
+# Provide 'app' alias for Gunicorn deployment compatibility
+app = objApp
+
 # Extract VAPID configuration values for push notifications
 strVapidPrivateKey = objApp.config['VAPID_PRIVATE_KEY']
 strVapidPublicKey = objApp.config['VAPID_PUBLIC_KEY']
