@@ -1,89 +1,117 @@
+"""
+Chattrix Real-Time Messaging Application
+Main Flask application with Socket.IO support for real-time communication.
+
+Features:
+- Real-time messaging with Socket.IO
+- User authentication and profile management
+- File upload capabilities
+- Push notifications with VAPID
+- Admin interface with Flask-Admin
+- Database management with SQLAlchemy
+"""
+
 import eventlet
 eventlet.monkey_patch()
+
+# Core Flask imports
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import send, emit, join_room, leave_room, SocketIO
 from datetime import datetime
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
+
+# Admin interface imports
 from flask_admin import Admin, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
+
+# Security and utilities
 from werkzeug.security import generate_password_hash, check_password_hash
-import os
 from werkzeug.utils import secure_filename
 from flask_toastr import Toastr
 from flask import flash
 from sqlalchemy import text
+from PIL import Image
+
+# External services and configuration
+import os
 import json
 from pywebpush import webpush, WebPushException
 from dotenv import load_dotenv
 from config import config
-from PIL import Image
 
-
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
-# --- Flask app setup ---
-def create_app(config_name=None):
+# --- Application Factory Pattern ---
+def create_app(strConfigName=None):
     """
-    Application factory pattern for creating Flask app instances.
+    Application Factory Pattern for Creating Flask App Instances
+    
+    Creates and configures a Flask application instance with all necessary
+    extensions, database setup, and configuration management.
     
     Args:
-        config_name (str): Configuration environment ('development', 'production', 'testing')
+        strConfigName (str): Configuration environment identifier
+                           ('development', 'production', 'testing')
         
     Returns:
-        Flask: Configured Flask application instance with database and extensions
+        Flask: Fully configured Flask application instance with:
+               - Database integration (SQLAlchemy)
+               - Real-time communication (Socket.IO)
+               - Authentication system (Flask-Login)
+               - Admin interface (Flask-Admin)
+               - Push notification support (WebPush)
     """
-    app = Flask(__name__)
+    objApp = Flask(__name__)
     
-    # Determine configuration
-    if config_name is None:
-        config_name = os.environ.get('FLASK_ENV', 'development')
+    # Determine configuration environment from parameter or environment variable
+    if strConfigName is None:
+        strConfigName = os.environ.get('FLASK_ENV', 'development')
     
-    app.config.from_object(config[config_name])
+    objApp.config.from_object(config[strConfigName])
     
-    # Override database URI for production to use environment variables
-    if config_name == 'production':
+    # Override database URI for production environment using environment variables
+    if strConfigName == 'production':
         from config import get_database_uri
-        database_uri = get_database_uri()
-        app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
+        strDatabaseUri = get_database_uri()
+        objApp.config['SQLALCHEMY_DATABASE_URI'] = strDatabaseUri
         
-        # Add SSL config only for AWS RDS PostgreSQL
-        if database_uri and 'postgresql://' in database_uri and 'amazonaws.com' in database_uri:
-            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                **app.config.get('SQLALCHEMY_ENGINE_OPTIONS', {}),
+        # Add SSL configuration only for AWS RDS PostgreSQL connections
+        if strDatabaseUri and 'postgresql://' in strDatabaseUri and 'amazonaws.com' in strDatabaseUri:
+            objApp.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+                **objApp.config.get('SQLALCHEMY_ENGINE_OPTIONS', {}),
                 'connect_args': {
                     'sslmode': 'require',
                     'connect_timeout': 10
                 }
             }
     
-    return app
+    return objApp
 
-# Create app instance
-config_name = os.environ.get('FLASK_ENV', 'development')
-app = create_app(config_name)
+# Create application instance using factory pattern
+strConfigName = os.environ.get('FLASK_ENV', 'development')
+objApp = create_app(strConfigName)
 
-# Get configuration values
-VAPID_PRIVATE_KEY = app.config['VAPID_PRIVATE_KEY']
-VAPID_PUBLIC_KEY = app.config['VAPID_PUBLIC_KEY']
-VAPID_CLAIMS = app.config['VAPID_CLAIMS']
+# Extract VAPID configuration values for push notifications
+strVapidPrivateKey = objApp.config['VAPID_PRIVATE_KEY']
+strVapidPublicKey = objApp.config['VAPID_PUBLIC_KEY']
+dictVapidClaims = objApp.config['VAPID_CLAIMS']
 
-# Upload folder configuration from config
-PROFILE_PICS_FOLDER = app.config['PROFILE_PICS_FOLDER']
-UPLOADS_FOLDER = app.config['UPLOADS_FOLDER']
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'txt', 'docx', 'mp4'}
+# Extract upload folder configuration from application config
+strProfilePicsFolder = objApp.config['PROFILE_PICS_FOLDER']
+strUploadsFolder = objApp.config['UPLOADS_FOLDER']
+setAllowedExtensions = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'txt', 'docx', 'mp4'}
 
-# Create upload directories
-# Create upload directories
-os.makedirs(PROFILE_PICS_FOLDER, exist_ok=True)
-os.makedirs(UPLOADS_FOLDER, exist_ok=True)
+# Create upload directories if they don't exist
+os.makedirs(strProfilePicsFolder, exist_ok=True)
+os.makedirs(strUploadsFolder, exist_ok=True)
 
-# Initialize extensions
-db = SQLAlchemy(app)
+# Initialize database extension
+objDb = SQLAlchemy(objApp)
 
-# Configure SocketIO for better real-time performance
-socketio_kwargs = {
+# Configure SocketIO for optimal real-time performance
+dictSocketIoKwargs = {
     'manage_session': True,
     'async_mode': 'eventlet',
     'ping_timeout': 10,
@@ -93,99 +121,124 @@ socketio_kwargs = {
     'transports': ['websocket', 'polling']
 }
 
-if config_name == 'production':
-    socketio_kwargs.update({
+# Environment-specific SocketIO configuration
+if strConfigName == 'production':
+    dictSocketIoKwargs.update({
         'logger': True,
         'engineio_logger': True,
         'cors_allowed_origins': "*"  # Configure this properly for your domain
     })
 else:
     # Development mode optimizations
-    socketio_kwargs.update({
+    dictSocketIoKwargs.update({
         'logger': False,
         'engineio_logger': False
     })
 
-socketio = SocketIO(app, **socketio_kwargs)
+objSocketIo = SocketIO(objApp, **dictSocketIoKwargs)
 
-# --- Flask-Login setup ---
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
+# --- Flask-Login Authentication Setup ---
+objLoginManager = LoginManager(objApp)
+objLoginManager.login_view = 'login'
 
-# --- Global variables for tracking user locations ---
-user_locations = {}  # Track which page/chat each user is on
+# --- Global State Management ---
+dictUserLocations = {}  # Track which page/chat each user is currently viewing
 
-# --- Database Models ---
+# --- Database Models with SQLAlchemy ---
 
-# User model
-class User(db.Model, UserMixin):
+class User(objDb.Model, UserMixin):
     """
-    User model with authentication and profile support
+    User Model for Authentication and Profile Management
     
-    Handles user registration, login, and profile management
+    Handles user registration, authentication, and profile management.
+    Integrates with Flask-Login for session management and supports admin privileges.
     """
-    id = db.Column(db.Integer, primary_key=True)
-    display_name = db.Column(db.String(50), nullable=False)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)  # Increased from 80 to 255 for password hashes
-    is_admin = db.Column(db.Boolean, default=False)
-    profile_pic = db.Column(db.String(120), default='default.jpg')
-    bio = db.Column(db.String(300), default='')
+    nId = objDb.Column(objDb.Integer, primary_key=True)
+    strDisplayName = objDb.Column(objDb.String(50), nullable=False)
+    strUsername = objDb.Column(objDb.String(80), unique=True, nullable=False)
+    strPasswordHash = objDb.Column(objDb.String(255), nullable=False)  # Increased from 80 to 255 for password hashes
+    bIsAdmin = objDb.Column(objDb.Boolean, default=False)
+    strProfilePic = objDb.Column(objDb.String(120), default='default.jpg')
+    strBio = objDb.Column(objDb.String(300), default='')
 
-class PushSubscription(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    endpoint = db.Column(db.Text, nullable=False)
-    p256dh = db.Column(db.Text, nullable=False)
-    auth = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Flask-Login required properties
+    def get_id(self):
+        return str(self.nId)
 
-
-# Message model with private messaging support
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # NULL = public message
-    text = db.Column(db.Text, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.now)
-    is_private = db.Column(db.Boolean, default=False)
-    pinned = db.Column(db.Boolean, default=False)
-    is_file = db.Column(db.Boolean, default=False)
-    file_path = db.Column(db.String(255), nullable=True)
-    original_filename = db.Column(db.String(255), nullable=True)
-    read = db.Column(db.Boolean, default=False)
+class PushSubscription(objDb.Model):
+    """
+    Push Notification Subscription Model
     
-    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
-    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_messages')
+    Stores browser push notification subscription data for WebPush delivery.
+    Each user can have multiple subscriptions across different devices/browsers.
+    """
+    nId = objDb.Column(objDb.Integer, primary_key=True)
+    nUserId = objDb.Column(objDb.Integer, objDb.ForeignKey('user.nId'), nullable=False)
+    strEndpoint = objDb.Column(objDb.Text, nullable=False)
+    strP256dhKey = objDb.Column(objDb.Text, nullable=False)
+    strAuthKey = objDb.Column(objDb.Text, nullable=False)
+    dtCreatedAt = objDb.Column(objDb.DateTime, default=datetime.utcnow)
 
-# Conversation model to track private chats
-class Conversation(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user1_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    user2_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    last_message_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.now)
+
+class Message(objDb.Model):
+    """
+    Message Model for Public and Private Communications
     
-    user1 = db.relationship('User', foreign_keys=[user1_id])
-    user2 = db.relationship('User', foreign_keys=[user2_id])
-    last_message = db.relationship('Message', foreign_keys=[last_message_id])
+    Handles both public chat messages and private direct messages.
+    Supports file attachments, message pinning, and read status tracking.
+    """
+    nId = objDb.Column(objDb.Integer, primary_key=True)
+    nSenderId = objDb.Column(objDb.Integer, objDb.ForeignKey('user.nId'), nullable=False)
+    nRecipientId = objDb.Column(objDb.Integer, objDb.ForeignKey('user.nId'), nullable=True)  # NULL = public message
+    strText = objDb.Column(objDb.Text, nullable=False)
+    dtTimestamp = objDb.Column(objDb.DateTime, default=datetime.now)
+    bIsPrivate = objDb.Column(objDb.Boolean, default=False)
+    bPinned = objDb.Column(objDb.Boolean, default=False)
+    bIsFile = objDb.Column(objDb.Boolean, default=False)
+    strFilePath = objDb.Column(objDb.String(255), nullable=True)
+    strOriginalFilename = objDb.Column(objDb.String(255), nullable=True)
+    bRead = objDb.Column(objDb.Boolean, default=False)
+    
+    # Database relationships for message participants
+    objSender = objDb.relationship('User', foreign_keys=[nSenderId], backref='sent_messages')
+    objRecipient = objDb.relationship('User', foreign_keys=[nRecipientId], backref='received_messages')
 
-@login_manager.user_loader
-def load_user(user_id):
+class Conversation(objDb.Model):
+    """
+    Conversation Model for Private Chat Management
+    
+    Tracks private conversations between users, maintaining last message
+    and timestamp information for conversation ordering and management.
+    """
+    nId = objDb.Column(objDb.Integer, primary_key=True)
+    nUser1Id = objDb.Column(objDb.Integer, objDb.ForeignKey('user.nId'), nullable=False)
+    nUser2Id = objDb.Column(objDb.Integer, objDb.ForeignKey('user.nId'), nullable=False)
+    nLastMessageId = objDb.Column(objDb.Integer, objDb.ForeignKey('message.nId'), nullable=True)
+    dtUpdatedAt = objDb.Column(objDb.DateTime, default=datetime.now)
+    
+    # Database relationships for conversation participants
+    objUser1 = objDb.relationship('User', foreign_keys=[nUser1Id])
+    objUser2 = objDb.relationship('User', foreign_keys=[nUser2Id])
+    objLastMessage = objDb.relationship('Message', foreign_keys=[nLastMessageId])
+
+@objLoginManager.user_loader
+def load_user(strUserId):
     """
     User loader callback for Flask-Login.
     
     Args:
-        user_id (str): User ID from session
+        strUserId (str): User ID from session
         
     Returns:
         User: User object if found, None otherwise
     """
-    return db.session.get(User, int(user_id))  # Use db.session.get() instead of User.query.get()
+    return objDb.session.get(User, int(strUserId))  # Use objDb.session.get() instead of User.query.get()
 
 # --- Database Migration ---
-def migrate_database():
+def migrateDatabaseSchema():
     """
+    Database Schema Migration Function
+    
     Safely add missing columns to existing database tables for backward compatibility.
     
     This function checks for the existence of each column before attempting to add it,
@@ -193,238 +246,272 @@ def migrate_database():
     Handles: recipient_id, is_private, read, is_file, file_path, original_filename, pinned columns
     """
     try:
-        with app.app_context():
-            # Use db.session.execute instead of db.engine.execute
+        with objApp.app_context():
+            # Use objDb.session.execute instead of objDb.engine.execute
             try:
-                db.session.execute(text("SELECT recipient_id FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT recipient_id FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN recipient_id INTEGER"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN recipient_id INTEGER"))
+                objDb.session.commit()
                 print("Added recipient_id column")
             
             try:
-                db.session.execute(text("SELECT is_private FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT is_private FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN is_private BOOLEAN DEFAULT 0"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN is_private BOOLEAN DEFAULT 0"))
+                objDb.session.commit()
                 print("Added is_private column")
             
             try:
-                db.session.execute(text("SELECT read FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT read FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN read BOOLEAN DEFAULT 0"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN read BOOLEAN DEFAULT 0"))
+                objDb.session.commit()
                 print("Added read column")
             
             try:
-                db.session.execute(text("SELECT is_file FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT is_file FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN is_file BOOLEAN DEFAULT 0"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN is_file BOOLEAN DEFAULT 0"))
+                objDb.session.commit()
                 print("Added is_file column")
             
             try:
-                db.session.execute(text("SELECT file_path FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT file_path FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN file_path VARCHAR(255)"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN file_path VARCHAR(255)"))
+                objDb.session.commit()
                 print("Added file_path column")
             
             try:
-                db.session.execute(text("SELECT original_filename FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT original_filename FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN original_filename VARCHAR(255)"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN original_filename VARCHAR(255)"))
+                objDb.session.commit()
                 print("Added original_filename column")
             
             try:
-                db.session.execute(text("SELECT pinned FROM message LIMIT 1"))
+                objDb.session.execute(text("SELECT pinned FROM message LIMIT 1"))
             except:
-                db.session.execute(text("ALTER TABLE message ADD COLUMN pinned BOOLEAN DEFAULT 0"))
-                db.session.commit()
+                objDb.session.execute(text("ALTER TABLE message ADD COLUMN pinned BOOLEAN DEFAULT 0"))
+                objDb.session.commit()
                 print("Added pinned column")
             
             # Check if push_subscription table exists
             try:
-                db.session.execute(text("SELECT 1 FROM push_subscription LIMIT 1"))
+                objDb.session.execute(text("SELECT 1 FROM push_subscription LIMIT 1"))
                 print("PushSubscription table exists")
             except:
                 print("Creating PushSubscription table...")
-                db.create_all()
+                objDb.create_all()
                 print("PushSubscription table created")
                 
-    except Exception as e:
-        print(f"Migration error: {e}")
+    except Exception as objError:
+        print(f"Migration error: {objError}")
 
 # --- Create tables and migrate ---
-with app.app_context():
-    db.create_all()
-    migrate_database()
+with objApp.app_context():
+    objDb.create_all()
+    migrateDatabaseSchema()
 
 # --- SocketIO session/user mapping ---
-user_sid_map = {}
-online_users = {}
+dictUserSidMap = {}
+dictOnlineUsers = {}
 
 # --- Helper Functions ---
 
-@app.route('/subscribe', methods=['POST'])
+@objApp.route('/subscribe', methods=['POST'])
 @login_required
 def subscribe():
+    """
+    Push Notification Subscription Handler
+    
+    Handles push notification subscription requests from authenticated users.
+    Removes existing subscriptions and creates new ones to prevent duplicates.
+    
+    Returns:
+        JSON: Success/error response with subscription status
+    """
     try:
-        subscription_data = request.get_json()
+        objSubscriptionData = request.get_json()
         
-        if not subscription_data or 'endpoint' not in subscription_data:
+        if not objSubscriptionData or 'endpoint' not in objSubscriptionData:
             return jsonify({'success': False, 'error': 'Invalid subscription data'}), 400
         
         # Remove existing subscriptions for this user
-        PushSubscription.query.filter_by(user_id=current_user.id).delete()
+        PushSubscription.query.filter_by(nUserId=current_user.nId).delete()
         
         # Add new subscription
-        subscription = PushSubscription(
-            user_id=current_user.id,
-            endpoint=subscription_data['endpoint'],
-            p256dh=subscription_data['keys']['p256dh'],
-            auth=subscription_data['keys']['auth']
+        objSubscription = PushSubscription(
+            nUserId=current_user.nId,
+            strEndpoint=objSubscriptionData['endpoint'],
+            strP256dhKey=objSubscriptionData['keys']['p256dh'],
+            strAuthKey=objSubscriptionData['keys']['auth']
         )
         
-        db.session.add(subscription)
-        db.session.commit()
+        objDb.session.add(objSubscription)
+        objDb.session.commit()
         
-        print(f"✅ Push subscription saved for user {current_user.id}")
+        print(f"✅ Push subscription saved for user {current_user.nId}")
         return jsonify({'success': True})
         
-    except Exception as e:
-        print(f"❌ Error saving push subscription: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+    except Exception as objError:
+        print(f"❌ Error saving push subscription: {objError}")
+        objDb.session.rollback()
+        return jsonify({'success': False, 'error': str(objError)}), 500
 
-@app.route('/vapid-public-key')
-def get_vapid_public_key():
+@objApp.route('/vapid-public-key')
+def getVapidPublicKey():
     """
+    VAPID Public Key API Endpoint
+    
     API endpoint to provide VAPID public key for push notification setup.
     
     Returns:
         JSON: Contains the VAPID public key needed by frontend for push subscriptions
     """
-    return jsonify({'publicKey': VAPID_PUBLIC_KEY})
+    return jsonify({'publicKey': strVapidPublicKey})
 
-@app.route('/subscribe-push', methods=['POST'])
+@objApp.route('/subscribe-push', methods=['POST'])
 @login_required
-def subscribe_push():
+def subscribePush():
     """
-    Subscribe a user to push notifications.
+    Push Notification Subscription Handler
     
+    Subscribe a user to push notifications.
     Expects JSON with 'subscription' containing push subscription data.
+    
+    Returns:
+        JSON: Success/error response with subscription details
     """
     try:
-        data = request.get_json()
-        subscription_data = data.get('subscription')
+        objData = request.get_json()
+        objSubscriptionData = objData.get('subscription')
         
-        if not subscription_data:
+        if not objSubscriptionData:
             return jsonify({'error': 'No subscription data provided'}), 400
         
         # Remove any existing subscription for this user
-        PushSubscription.query.filter_by(user_id=current_user.id).delete()
+        PushSubscription.query.filter_by(nUserId=current_user.nId).delete()
         
         # Create new subscription
-        subscription = PushSubscription(
-            user_id=current_user.id,
-            endpoint=subscription_data['endpoint'],
-            p256dh=subscription_data['keys']['p256dh'],
-            auth=subscription_data['keys']['auth']
+        objSubscription = PushSubscription(
+            nUserId=current_user.nId,
+            strEndpoint=objSubscriptionData['endpoint'],
+            strP256dhKey=objSubscriptionData['keys']['p256dh'],
+            strAuthKey=objSubscriptionData['keys']['auth']
         )
         
-        db.session.add(subscription)
-        db.session.commit()
+        objDb.session.add(objSubscription)
+        objDb.session.commit()
         
-        print(f"✅ Push subscription saved for user {current_user.id}")
-        print(f"📤 Endpoint: {subscription_data['endpoint'][:100]}...")
+        print(f"✅ Push subscription saved for user {current_user.nId}")
+        print(f"📤 Endpoint: {objSubscriptionData['endpoint'][:100]}...")
         
         return jsonify({'success': True, 'message': 'Push subscription saved'})
         
-    except Exception as e:
-        print(f"❌ Error saving push subscription: {e}")
-        return jsonify({'error': str(e)}), 500
+    except Exception as objError:
+        print(f"❌ Error saving push subscription: {objError}")
+        return jsonify({'error': str(objError)}), 500
 
-@app.route('/test-push/<int:user_id>')
+@objApp.route('/test-push/<int:nUserId>')
 @login_required
-def test_push_notification(user_id):
+def testPushNotification(nUserId):
     """
+    Push Notification Test Endpoint (Admin Only)
+    
     Admin-only endpoint for testing push notifications to a specific user.
     
     Args:
-        user_id (int): Target user ID for the test notification
+        nUserId (int): Target user ID for the test notification
         
     Returns:
         JSON: Success/failure status of the test notification
     """
-    if current_user.is_admin:
+    if current_user.bIsAdmin:
         send_web_push(
-            user_id,
+            nUserId,
             "Test Notification",
             "This is a test push notification from Chattrix!",
             "/chat"
         )
-        return jsonify({'success': True, 'message': f'Test notification sent to user {user_id}'})
+        return jsonify({'success': True, 'message': f'Test notification sent to user {nUserId}'})
     else:
         return jsonify({'success': False, 'message': 'Admin access required'}), 403
 
-@app.route('/register-fallback-notifications', methods=['POST'])
+@objApp.route('/register-fallback-notifications', methods=['POST'])
 @login_required
-def register_fallback_notifications():
+def registerFallbackNotifications():
     """
+    Fallback Browser Notification Registration
+    
     Register user for fallback browser notifications (for localhost testing).
+    Used when service workers are not available or supported.
+    
+    Returns:
+        JSON: Registration status and user configuration
     """
     try:
-        data = request.get_json()
-        user_id = current_user.id
+        objData = request.get_json()
+        nUserId = current_user.nId
         
         # For now, just log that the user wants notifications
         # In a real app, you'd store this preference in the database
-        print(f"✅ User {user_id} registered for fallback notifications")
+        print(f"✅ User {nUserId} registered for fallback notifications")
         
         return jsonify({'success': True, 'message': 'Registered for notifications'})
         
-    except Exception as e:
-        print(f"❌ Error registering fallback notifications: {e}")
-        return jsonify({'error': str(e)}), 500
+    except Exception as objError:
+        print(f"❌ Error registering fallback notifications: {objError}")
+        return jsonify({'error': str(objError)}), 500
 
-@app.route('/test-browser-notification/<int:user_id>')
+@objApp.route('/test-browser-notification/<int:nUserId>')
 @login_required
-def test_browser_notification(user_id):
+def testBrowserNotification(nUserId):
     """
+    Browser Notification Test Endpoint
+    
     Test browser notification endpoint (doesn't require push subscription).
+    Sends Socket.IO events to trigger browser notifications for testing.
+    
+    Args:
+        nUserId (int): Target user ID for the test notification
+        
+    Returns:
+        JSON: Test notification success/failure status
     """
-    if current_user.is_admin or current_user.id == user_id:
+    if current_user.bIsAdmin or current_user.nId == nUserId:
         # Send a socket event that will trigger browser notification
-        socketio.emit('browser_notification', {
+        objSocketIo.emit('browser_notification', {
             'title': 'Test Browser Notification',
             'message': 'This is a test browser notification from Chattrix!',
             'type': 'test'
-        }, room=f'user_{user_id}')
+        }, room=f'user_{nUserId}')
         
-        print(f"📤 Browser notification test sent to user {user_id}")
-        return jsonify({'success': True, 'message': f'Test browser notification sent to user {user_id}'})
+        print(f"📤 Browser notification test sent to user {nUserId}")
+        return jsonify({'success': True, 'message': f'Test browser notification sent to user {nUserId}'})
     else:
         return jsonify({'success': False, 'message': 'Access denied'}), 403
 
-@app.route('/push-test')
-def push_test():
+@objApp.route('/push-test')
+def pushTestPage():
     """
     Debug page for testing push notifications
     """
     return render_template('push_test.html')
 
 
-def send_web_push(user_id, title, body, url='/chat'):
+def send_web_push(nUserId, strTitle, strBody, strUrl='/chat'):
     """
+    Web Push Notification Sender Function
+    
     Send web push notifications to all subscribed devices for a specific user.
     
     Args:
-        user_id (int): Target user ID for the notification
-        title (str): Notification title text
-        body (str): Notification body/message text
-        url (str): URL to navigate to when notification is clicked (default: '/chat')
+        nUserId (int): Target user ID for the notification
+        strTitle (str): Notification title text
+        strBody (str): Notification body/message text
+        strUrl (str): URL to navigate to when notification is clicked (default: '/chat')
         
     Note:
         - Automatically removes expired subscriptions (410 responses)
@@ -432,95 +519,106 @@ def send_web_push(user_id, title, body, url='/chat'):
         - Logs success/failure for debugging
     """
     try:
-        subscriptions = PushSubscription.query.filter_by(user_id=user_id).all()
+        arrSubscriptions = PushSubscription.query.filter_by(nUserId=nUserId).all()
         
-        if not subscriptions:
-            print(f"⚠️ No push subscriptions found for user {user_id}")
+        if not arrSubscriptions:
+            print(f"⚠️ No push subscriptions found for user {nUserId}")
             return
         
-        print(f"📤 Sending push notification to {len(subscriptions)} subscription(s) for user {user_id}")
+        print(f"📤 Sending push notification to {len(arrSubscriptions)} subscription(s) for user {nUserId}")
         
-        for subscription in subscriptions:
+        for objSubscription in arrSubscriptions:
             try:
-                payload = json.dumps({
-                    "title": title,
-                    "body": body,
-                    "url": url,
+                dictPayload = json.dumps({
+                    "title": strTitle,
+                    "body": strBody,
+                    "url": strUrl,
                     "icon": "/static/profile_pics/default.jpg",
                     "badge": "/static/profile_pics/default.jpg"
                 })
                 
                 webpush(
                     subscription_info={
-                        "endpoint": subscription.endpoint,
+                        "endpoint": objSubscription.strEndpoint,
                         "keys": {
-                            "p256dh": subscription.p256dh,
-                            "auth": subscription.auth
+                            "p256dh": objSubscription.strP256dhKey,
+                            "auth": objSubscription.strAuthKey
                         }
                     },
-                    data=payload,
-                    vapid_private_key=VAPID_PRIVATE_KEY,
-                    vapid_claims=VAPID_CLAIMS
+                    data=dictPayload,
+                    vapid_private_key=strVapidPrivateKey,
+                    vapid_claims=dictVapidClaims
                 )
-                print(f"✅ Push notification sent successfully to user {user_id}")
+                print(f"✅ Push notification sent successfully to user {nUserId}")
                 
-            except WebPushException as e:
-                print(f"❌ WebPush error for user {user_id}: {e}")
-                if e.response and e.response.status_code == 410:
+            except WebPushException as objWebPushError:
+                print(f"❌ WebPush error for user {nUserId}: {objWebPushError}")
+                if objWebPushError.response and objWebPushError.response.status_code == 410:
                     # Subscription expired, remove it
-                    print(f"🗑️ Removing expired subscription for user {user_id}")
-                    db.session.delete(subscription)
-                    db.session.commit()
-            except Exception as e:
-                print(f"❌ Unexpected error sending push notification: {e}")
+                    print(f"🗑️ Removing expired subscription for user {nUserId}")
+                    objDb.session.delete(objSubscription)
+                    objDb.session.commit()
+            except Exception as objError:
+                print(f"❌ Unexpected error sending push notification: {objError}")
                 
-    except Exception as e:
-        print(f"❌ Error in send_web_push function: {e}")
+    except Exception as objError:
+        print(f"❌ Error in send_web_push function: {objError}")
 
-def allowed_file(filename):
+def isAllowedFile(strFilename):
     """
-    Check if uploaded file has an allowed extension.
+    File Extension Validation Function
+    
+    Check if uploaded file has an allowed extension for security.
     
     Args:
-        filename (str): Name of the uploaded file
+        strFilename (str): Name of the uploaded file
         
     Returns:
-        bool: True if file extension is in ALLOWED_EXTENSIONS, False otherwise
+        bool: True if file extension is in setAllowedExtensions, False otherwise
     """
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in strFilename and strFilename.rsplit('.', 1)[1].lower() in setAllowedExtensions
 
-def resize_profile_picture(filepath, max_size=(200, 200)):
+def resizeProfilePicture(strFilepath, tplMaxSize=(200, 200)):
     """
-    Resize and optimize profile picture.
+    Profile Picture Resize and Optimization Function
+    
+    Resize and optimize profile picture for consistent display and performance.
     
     Args:
-        filepath (str): Path to the uploaded image file
-        max_size (tuple): Maximum dimensions (width, height)
+        strFilepath (str): Path to the uploaded image file
+        tplMaxSize (tuple): Maximum dimensions (width, height)
+        
+    Note:
+        - Maintains aspect ratio during resize
+        - Optimizes file size for web performance
+        - Handles various image formats
     """
     try:
-        with Image.open(filepath) as img:
+        with Image.open(strFilepath) as objImg:
             # Convert to RGB if necessary (handles RGBA, P mode images)
-            if img.mode in ('RGBA', 'P'):
-                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
-                img = rgb_img
+            if objImg.mode in ('RGBA', 'P'):
+                objRgbImg = Image.new('RGB', objImg.size, (255, 255, 255))
+                objRgbImg.paste(objImg, mask=objImg.split()[-1] if objImg.mode == 'RGBA' else None)
+                objImg = objRgbImg
             
             # Resize maintaining aspect ratio
-            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+            objImg.thumbnail(tplMaxSize, Image.Resampling.LANCZOS)
             
             # Save optimized image
-            img.save(filepath, 'JPEG', quality=85, optimize=True)
-    except Exception as e:
-        print(f"Error resizing profile picture: {e}")
+            objImg.save(strFilepath, 'JPEG', quality=85, optimize=True)
+    except Exception as objError:
+        print(f"Error resizing profile picture: {objError}")
         # If resize fails, keep original file
 
-def get_or_create_conversation(user1_id, user2_id):
+def getOrCreateConversation(nUser1Id, nUser2Id):
     """
+    Private Conversation Management Function
+    
     Find existing private conversation between two users or create a new one.
     
     Args:
-        user1_id (int): First user's ID
-        user2_id (int): Second user's ID
+        nUser1Id (int): First user's ID
+        nUser2Id (int): Second user's ID
         
     Returns:
         Conversation: Existing or newly created conversation object
@@ -530,29 +628,31 @@ def get_or_create_conversation(user1_id, user2_id):
         - Creates conversation in database if it doesn't exist
         - Updates timestamp when conversation is accessed
     """
-    conversation = Conversation.query.filter(
-        ((Conversation.user1_id == user1_id) & (Conversation.user2_id == user2_id)) |
-        ((Conversation.user1_id == user2_id) & (Conversation.user2_id == user1_id))
+    objConversation = Conversation.query.filter(
+        ((Conversation.nUser1Id == nUser1Id) & (Conversation.nUser2Id == nUser2Id)) |
+        ((Conversation.nUser1Id == nUser2Id) & (Conversation.nUser2Id == nUser1Id))
     ).first()
     
-    if not conversation:
-        conversation = Conversation(
-            user1_id=min(user1_id, user2_id),
-            user2_id=max(user1_id, user2_id),
-            updated_at=datetime.now()
+    if not objConversation:
+        objConversation = Conversation(
+            nUser1Id=min(nUser1Id, nUser2Id),
+            nUser2Id=max(nUser1Id, nUser2Id),
+            dtUpdatedAt=datetime.now()
         )
-        db.session.add(conversation)
-        db.session.commit()
+        objDb.session.add(objConversation)
+        objDb.session.commit()
     
-    return conversation
+    return objConversation
 
 # --- Routes ---
 
-@app.route('/')
+@objApp.route('/')
 @login_required
-def index():
+def indexPage():
     """
-    Main public chat page route.
+    Application Home Page Route
+    
+    Main public chat page route serving as the primary interface.
     
     Returns:
         Template: Renders the main chat interface (chat.html)
@@ -563,8 +663,8 @@ def index():
     """
     return render_template('chat.html')
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+@objApp.route('/register', methods=['GET', 'POST'])
+def registerPage():
     """
     User registration route handling both GET and POST requests.
     
@@ -585,22 +685,22 @@ def register():
         - Shows flash messages for feedback
     """
     if request.method == 'POST':
-        display_name = request.form['display_name']
-        username = request.form['username']
-        password = request.form['password']
-        if User.query.filter_by(username=username).first():
+        strDisplayName = request.form['display_name']
+        strUsername = request.form['username']
+        strPassword = request.form['password']
+        if User.query.filter_by(strUsername=strUsername).first():
             flash("Username already taken.", "error")
         else:
-            hashedPassword = generate_password_hash(password, method='pbkdf2:sha256')
-            user = User(display_name=display_name, username=username, password=hashedPassword)
-            db.session.add(user)
-            db.session.commit()
+            strHashedPassword = generate_password_hash(strPassword, method='pbkdf2:sha256')
+            objUser = User(strDisplayName=strDisplayName, strUsername=strUsername, strPasswordHash=strHashedPassword)
+            objDb.session.add(objUser)
+            objDb.session.commit()
             flash("Registration successful! Please log in.", "success")
-            return redirect(url_for('login'))
+            return redirect(url_for('loginPage'))
     return render_template('register.html')
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
+@objApp.route('/login', methods=['GET', 'POST'])
+def loginPage():
     """
     User login route handling both GET and POST requests.
     
@@ -630,13 +730,15 @@ def login():
         else:
             login_user(user)
             flash("Login successful!", "success")
-            return redirect(url_for('index'))
+            return redirect(url_for('indexPage'))
     return render_template('login.html')
 
-@app.route('/logout')
+@objApp.route('/logout')
 @login_required
-def logout():
+def logoutPage():
     """
+    User Logout Route Handler
+    
     User logout route that ends the current session.
     
     Returns:
@@ -647,11 +749,11 @@ def logout():
         - Clears user session using Flask-Login
     """
     logout_user()
-    return redirect(url_for('login'))
+    return redirect(url_for('loginPage'))
 
-@app.route('/profile', methods=['GET', 'POST'])
+@objApp.route('/profile', methods=['GET', 'POST'])
 @login_required
-def profile():
+def profilePage():
     """
     User profile management route for updating personal information.
     
@@ -688,36 +790,36 @@ def profile():
             current_user.bio = bio
             
         if 'profile_pic' in request.files:
-            file = request.files['profile_pic']
-            if file and file.filename and allowed_file(file.filename):
+            objFile = request.files['profile_pic']
+            if objFile and objFile.filename and isAllowedFile(objFile.filename):
                 # Generate secure filename with user ID
-                file_ext = file.filename.rsplit('.', 1)[1].lower()
-                filename = secure_filename(f"{current_user.id}_profile.jpg")  # Always save as jpg after processing
-                filepath = os.path.join(app.config['PROFILE_PICS_FOLDER'], filename)
+                strFileExt = objFile.filename.rsplit('.', 1)[1].lower()
+                strFilename = secure_filename(f"{current_user.nId}_profile.jpg")  # Always save as jpg after processing
+                strFilepath = os.path.join(objApp.config['PROFILE_PICS_FOLDER'], strFilename)
                 
                 # Save original file temporarily
-                temp_path = filepath + '.temp'
-                file.save(temp_path)
+                strTempPath = strFilepath + '.temp'
+                objFile.save(strTempPath)
                 
                 # Resize and optimize the image
-                resize_profile_picture(temp_path, max_size=(200, 200))
+                resizeProfilePicture(strTempPath, tplMaxSize=(200, 200))
                 
                 # Move processed file to final location
-                os.rename(temp_path, filepath)
+                os.rename(strTempPath, strFilepath)
                 
-                current_user.profile_pic = filename
+                current_user.strProfilePic = strFilename
 
-        db.session.commit()
+        objDb.session.commit()
         flash("Profile updated successfully!", "success")
-        return redirect(url_for('profile'))
+        return redirect(url_for('profilePage'))
 
-    return render_template('profile.html', user=current_user)
+    return render_template('profile.html', objUser=current_user)
 
 # --- Private Messaging Routes ---
 
-@app.route('/conversations')
+@objApp.route('/conversations')
 @login_required
-def conversations():
+def conversationsPage():
     """
     Display all private conversations for the current user.
     
@@ -729,23 +831,26 @@ def conversations():
         - Includes conversations where user is either participant
         - Requires user authentication
     """
-    conversations = db.session.query(Conversation).filter(
-        (Conversation.user1_id == current_user.id) | 
-        (Conversation.user2_id == current_user.id)
-    ).order_by(Conversation.updated_at.desc()).all()
+    arrConversations = objDb.session.query(Conversation).filter(
+        (Conversation.nUser1Id == current_user.nId) | 
+        (Conversation.nUser2Id == current_user.nId)
+    ).order_by(Conversation.dtUpdatedAt.desc()).all()
     
-    return render_template('conversations.html', conversations=conversations)
+    return render_template('conversations.html', arrConversations=arrConversations)
 
-@app.route('/chat/<int:user_id>')
+@objApp.route('/chat/<int:nUserId>')
 @login_required 
-def private_chat(user_id):
+def privateChatPage(nUserId):
     """
+    Private Chat Interface Route
+    
     Private chat interface between current user and specified user.
     
     Args:
-        user_id (int): ID of the other user to chat with
+        nUserId (int): ID of the other user to chat with
         
     Returns:
+        Template: Private chat page with conversation history
         Template: Private chat interface with message history
         Redirect: To conversations page if trying to chat with self
         
@@ -755,34 +860,34 @@ def private_chat(user_id):
         - Automatically marks incoming messages as read
         - Loads complete message history between the two users
     """
-    other_user = User.query.get_or_404(user_id)
+    objOtherUser = User.query.get_or_404(nUserId)
     
-    if other_user.id == current_user.id:
+    if objOtherUser.nId == current_user.nId:
         flash("You can't chat with yourself!", "error")
-        return redirect(url_for('conversations'))
+        return redirect(url_for('conversationsPage'))
     
     # Get or create conversation
-    conversation = get_or_create_conversation(current_user.id, user_id)
+    objConversation = getOrCreateConversation(current_user.nId, nUserId)
     
     # Get messages for this conversation
-    messages = Message.query.filter(
-        ((Message.sender_id == current_user.id) & (Message.recipient_id == user_id)) |
-        ((Message.sender_id == user_id) & (Message.recipient_id == current_user.id))
-    ).order_by(Message.timestamp.asc()).all()
+    arrMessages = Message.query.filter(
+        ((Message.nSenderId == current_user.nId) & (Message.nRecipientId == nUserId)) |
+        ((Message.nSenderId == nUserId) & (Message.nRecipientId == current_user.nId))
+    ).order_by(Message.dtTimestamp.asc()).all()
     
     # Mark messages as read
     Message.query.filter(
-        (Message.sender_id == user_id) & 
-        (Message.recipient_id == current_user.id) &
-        (Message.read == False)
-    ).update({'read': True})
-    db.session.commit()
+        (Message.nSenderId == nUserId) & 
+        (Message.nRecipientId == current_user.nId) &
+        (Message.bRead == False)
+    ).update({'bRead': True})
+    objDb.session.commit()
     
-    return render_template('private_chat.html', other_user=other_user, messages=messages)
+    return render_template('private_chat.html', objOtherUser=objOtherUser, arrMessages=arrMessages)
 
-@app.route('/users')
+@objApp.route('/users')
 @login_required
-def user_list():
+def userListPage():
     """
     Display list of all users available for starting private chats.
     
@@ -799,9 +904,9 @@ def user_list():
 
 # --- File Upload Routes ---
 
-@app.route('/upload', methods=['POST'])
+@objApp.route('/upload', methods=['POST'])
 @login_required
-def upload_file():
+def uploadFilePage():
     """
     Handle file uploads for both public and private messages.
     
@@ -827,13 +932,13 @@ def upload_file():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
-    if not (file and allowed_file(file.filename)):
+    if not (file and isAllowedFile(file.filename)):
         return jsonify({'error': 'File type not allowed'}), 400
     
     try:
         recipient_id = request.form.get('recipient_id')  # For private file sharing
         filename = secure_filename(f"{current_user.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
-        filepath = os.path.join(app.config['UPLOADS_FOLDER'], filename)
+        filepath = os.path.join(objApp.config['UPLOADS_FOLDER'], filename)
         file.save(filepath)
         
         # Save file message to database
@@ -847,18 +952,18 @@ def upload_file():
             file_path=filepath,
             original_filename=file.filename
         )
-        db.session.add(file_message)
-        db.session.commit()
+        objDb.session.add(file_message)
+        objDb.session.commit()
         
         # Update conversation if private file
         if recipient_id:
-            conversation = get_or_create_conversation(current_user.id, int(recipient_id))
+            conversation = getOrCreateConversation(current_user.id, int(recipient_id))
             conversation.last_message_id = file_message.id
             conversation.updated_at = datetime.now()
-            db.session.commit()
+            objDb.session.commit()
             
             # Send to specific users only
-            socketio.emit('receive_message', {
+            objSocketIo.emit('receive_message', {
                 'id': file_message.id,
                 'display_name': current_user.display_name,
                 'text': file_message.text,
@@ -868,7 +973,7 @@ def upload_file():
                 'profile_pic': current_user.profile_pic or 'default.jpg'
             }, room=f"user_{recipient_id}")
             
-            socketio.emit('receive_message', {
+            objSocketIo.emit('receive_message', {
                 'id': file_message.id,
                 'display_name': current_user.display_name,
                 'text': file_message.text,
@@ -879,7 +984,7 @@ def upload_file():
             }, room=f"user_{current_user.id}")
         else:
             # Public file - broadcast to all
-            socketio.emit('receive_message', {
+            objSocketIo.emit('receive_message', {
                 'id': file_message.id,
                 'display_name': current_user.display_name,
                 'text': file_message.text,
@@ -891,37 +996,41 @@ def upload_file():
         
         return jsonify({'success': True, 'filename': filename})
         
-    except Exception as e:
-        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+    except Exception as objError:
+        return jsonify({'error': f'Upload failed: {str(objError)}'}), 500
 
-@app.route('/static/uploads/<filename>')
-def uploaded_file(filename):
+@objApp.route('/static/uploads/<strFilename>')
+def uploadedFilePage(strFilename):
     """
+    File Serving Route for Uploads
+    
     Serve uploaded files from the uploads directory.
     
     Args:
-        filename (str): Name of the file to serve
+        strFilename (str): Name of the file to serve
         
     Returns:
         File: The requested file or 404 if not found
     """
-    return send_from_directory(app.config['UPLOADS_FOLDER'], filename)
+    return send_from_directory(objApp.config['UPLOADS_FOLDER'], strFilename)
 
-@app.route('/static/profile_pics/<filename>')  
-def profile_pic(filename):
+@objApp.route('/static/profile_pics/<strFilename>')  
+def profilePicturePage(strFilename):
     """
+    Profile Picture Serving Route
+    
     Serve profile pictures from the profile pics directory.
     
     Args:
-        filename (str): Name of the profile picture to serve
+        strFilename (str): Name of the profile picture to serve
         
     Returns:
         File: The requested profile picture or 404 if not found
     """
-    return send_from_directory(app.config['PROFILE_PICS_FOLDER'], filename)
+    return send_from_directory(objApp.config['PROFILE_PICS_FOLDER'], strFilename)
 
-@app.route('/test-upload')
-def test_upload_page():
+@objApp.route('/test-upload')
+def testUploadPage():
     """Test page for file upload functionality without login"""
     return '''
     <!DOCTYPE html>
@@ -958,7 +1067,7 @@ def test_upload_page():
 
 # --- Message API Routes ---
 
-@app.route('/messages')
+@objApp.route('/messages')
 @login_required
 def get_messages():
     """
@@ -994,7 +1103,7 @@ def get_messages():
         })
     return jsonify(result)
 
-@app.route('/pinned_messages')
+@objApp.route('/pinned_messages')
 @login_required
 def get_pinned_messages():
     """
@@ -1027,7 +1136,7 @@ def get_pinned_messages():
 
 # --- SocketIO Event Handlers ---
 
-@socketio.on('connect')
+@objSocketIo.on('connect')
 def handle_connect():
     """
     Handle WebSocket connection from authenticated users.
@@ -1045,7 +1154,7 @@ def handle_connect():
     """
     if current_user.is_authenticated:
         # Add user to online users
-        online_users[current_user.id] = {
+        dictOnlineUsers[current_user.id] = {
             'id': current_user.id,
             'username': current_user.username,
             'display_name': current_user.display_name,
@@ -1056,11 +1165,11 @@ def handle_connect():
         join_room(f'user_{current_user.id}')
         
         # Broadcast updated online users list
-        emit('online_users', list(online_users.values()))
+        emit('online_users', list(dictOnlineUsers.values()))
         
-        print(f"✅ User {current_user.username} connected - {len(online_users)} users online")
+        print(f"✅ User {current_user.username} connected - {len(dictOnlineUsers)} users online")
 
-@socketio.on('disconnect')
+@objSocketIo.on('disconnect')
 def handle_disconnect():
     """
     Handle WebSocket disconnection from authenticated users.
@@ -1077,18 +1186,18 @@ def handle_disconnect():
     """
     if current_user.is_authenticated:
         # Remove user from online users
-        if current_user.id in online_users:
-            del online_users[current_user.id]
+        if current_user.id in dictOnlineUsers:
+            del dictOnlineUsers[current_user.id]
         
         # Leave user's personal room
         leave_room(f'user_{current_user.id}')
         
         # Broadcast updated online users list
-        emit('online_users', list(online_users.values()))
+        emit('online_users', list(dictOnlineUsers.values()))
         
-        print(f"❌ User {current_user.username} disconnected - {len(online_users)} users online")
+        print(f"❌ User {current_user.username} disconnected - {len(dictOnlineUsers)} users online")
 
-@socketio.on('user_location')
+@objSocketIo.on('user_location')
 def handle_user_location(data):
     """
     Track which page or chat interface the user is currently viewing.
@@ -1106,10 +1215,10 @@ def handle_user_location(data):
         return
         
     location = data.get('location')
-    user_locations[current_user.id] = location
+    dictUserLocations[current_user.id] = location
     print(f"📍 User {current_user.id} ({current_user.username}) is now on: {location}")
 
-@socketio.on('join_user_room')
+@objSocketIo.on('join_user_room')
 def handle_join_user_room():
     """
     Explicitly join user to their personal notification room and update online status.
@@ -1129,7 +1238,7 @@ def handle_join_user_room():
         join_room(f'user_{current_user.id}')
         
         # Update online users when they explicitly join
-        online_users[current_user.id] = {
+        dictOnlineUsers[current_user.id] = {
             'id': current_user.id,
             'username': current_user.username,
             'display_name': current_user.display_name,
@@ -1137,10 +1246,10 @@ def handle_join_user_room():
         }
         
         # Send updated online users list
-        emit('online_users', list(online_users.values()))
+        emit('online_users', list(dictOnlineUsers.values()))
         print(f"👥 {current_user.username} joined user room - Broadcasting online users")
 
-@socketio.on('join_private_room')
+@objSocketIo.on('join_private_room')
 def handle_join_private_room(data):
     """
     Join a specific private chat room for real-time messaging between two users.
@@ -1163,7 +1272,7 @@ def handle_join_private_room(data):
     join_room(room)
     print(f"💬 User {current_user.id} ({current_user.username}) joined private room: {room}")
 
-@socketio.on('get_online_users')
+@objSocketIo.on('get_online_users')
 def handle_get_online_users():
     """
     Send current online users list to the requesting client.
@@ -1178,11 +1287,11 @@ def handle_get_online_users():
         - Logs the request for debugging purposes
     """
     if current_user.is_authenticated:
-        emit('online_users', list(online_users.values()))
-        print(f"📊 Sent online users list to {current_user.username}: {len(online_users)} users")
+        emit('online_users', list(dictOnlineUsers.values()))
+        print(f"📊 Sent online users list to {current_user.username}: {len(dictOnlineUsers)} users")
 
 # Update your handle_private_message function in app.py
-@socketio.on('private_message')
+@objSocketIo.on('private_message')
 def handle_private_message(data):
     """
     Handle private message sending between users (alternative handler).
@@ -1220,14 +1329,14 @@ def handle_private_message(data):
         is_private=True
     )
     
-    db.session.add(message)
-    db.session.commit()
+    objDb.session.add(message)
+    objDb.session.commit()
     
     # Update conversation
-    conversation = get_or_create_conversation(current_user.id, recipient_id)
+    conversation = getOrCreateConversation(current_user.id, recipient_id)
     conversation.last_message_id = message.id
     conversation.updated_at = datetime.now()
-    db.session.commit()
+    objDb.session.commit()
     
     # Prepare message data with profile picture
     message_data = {
@@ -1268,7 +1377,7 @@ def handle_private_message(data):
     print(f"💬 Private message sent from {current_user.username} to {recipient.username}")
 
 # Replace your existing send_message handler with this one:
-@socketio.on('send_message')
+@objSocketIo.on('send_message')
 def handle_send_message(data):
     """
     Handle public message sending to the main chat room.
@@ -1305,8 +1414,8 @@ def handle_send_message(data):
         timestamp=datetime.now(),
         is_private=False
     )
-    db.session.add(message)
-    db.session.commit()
+    objDb.session.add(message)
+    objDb.session.commit()
     
     # Prepare message data with profile picture URL
     message_data = {
@@ -1326,7 +1435,7 @@ def handle_send_message(data):
     emit('receive_message', message_data)
     
     # Send notifications to users not in public chat
-    for user_id, location in user_locations.items():
+    for user_id, location in dictUserLocations.items():
         if user_id != current_user.id and location != 'public_chat':
             emit('notification', {
                 'type': 'public_message',
@@ -1347,7 +1456,7 @@ def handle_send_message(data):
     print(f"📤 Public message sent by {current_user.id}: {text}")
 
 # Add send_private_message handler after the other message handlers
-@socketio.on('send_private_message')
+@objSocketIo.on('send_private_message')
 def handle_send_private_message(data):
     """
     Handle private message sending with comprehensive error handling.
@@ -1392,14 +1501,14 @@ def handle_send_private_message(data):
         is_private=True
     )
     
-    db.session.add(private_message)
-    db.session.commit()
+    objDb.session.add(private_message)
+    objDb.session.commit()
     
     # Update conversation
-    conversation = get_or_create_conversation(current_user.id, recipient_id)
+    conversation = getOrCreateConversation(current_user.id, recipient_id)
     conversation.last_message_id = private_message.id
     conversation.updated_at = datetime.now()
-    db.session.commit()
+    objDb.session.commit()
     
     # Prepare message data with profile picture
     message_data = {
@@ -1442,7 +1551,7 @@ def handle_send_private_message(data):
     print(f"📤 Private message sent from {current_user.id} to {recipient_id}")
 
 # Also add these alternative handlers in case your frontend uses different event names:
-@socketio.on('message')
+@objSocketIo.on('message')
 def handle_message(data):
     """
     Alternative handler for public messages using 'message' event name.
@@ -1459,7 +1568,7 @@ def handle_message(data):
     """
     return handle_send_message(data)
 
-@socketio.on('new_message')  
+@objSocketIo.on('new_message')  
 def handle_new_message(data):
     """
     Alternative handler for public messages using 'new_message' event name.
@@ -1480,7 +1589,7 @@ def handle_new_message(data):
         data = {'text': data}
     return handle_send_message(data)
 
-@socketio.on('send_public_message')
+@objSocketIo.on('send_public_message')
 def handle_send_public_message(data):
     """
     Explicit handler for public messages using 'send_public_message' event name.
@@ -1498,7 +1607,7 @@ def handle_send_public_message(data):
     return handle_send_message(data)
 
 # --- Pin/unpin message events ---
-@socketio.on('pin_message')
+@objSocketIo.on('pin_message')
 def handle_pin_message(data):
     """
     Allow admin users to pin important public messages.
@@ -1533,17 +1642,17 @@ def handle_pin_message(data):
         emit('error', {'message': 'Message ID required'})
         return
         
-    msg = db.session.get(Message, message_id)
-    if msg and not msg.is_private:  # Only pin public messages
-        msg.pinned = True
-        db.session.commit()
+    objMsg = objDb.session.get(Message, message_id)
+    if objMsg and not objMsg.is_private:  # Only pin public messages
+        objMsg.pinned = True
+        objDb.session.commit()
         emit('update_pinned', {'message_id': message_id})
         print(f"📌 Admin {current_user.id} pinned message {message_id}")
         emit('success', {'message': 'Message pinned successfully'})
     else:
         emit('error', {'message': 'Message not found or is private'})
 
-@socketio.on('unpin_message')
+@objSocketIo.on('unpin_message')
 def handle_unpin_message(data):
     """
     Allow admin users to unpin previously pinned messages.
@@ -1579,10 +1688,10 @@ def handle_unpin_message(data):
         return
     
     # Find and unpin the message
-    message = db.session.get(Message, message_id)
-    if message:
-        message.pinned = False
-        db.session.commit()
+    objMessage = objDb.session.get(Message, message_id)
+    if objMessage:
+        objMessage.pinned = False
+        objDb.session.commit()
         
         emit('update_unpinned', {'message_id': message_id})
         
@@ -1591,7 +1700,7 @@ def handle_unpin_message(data):
     else:
         emit('error', {'message': 'Message not found'})
 
-@socketio.on('user_joined')
+@objSocketIo.on('user_joined')
 def handle_user_joined():
     """
     Broadcast a system message when a user joins the chat.
@@ -1621,7 +1730,7 @@ def handle_user_joined():
         emit('receive_message', join_message_data)
         print(f"👋 {current_user.username} joined the chat")
 
-@socketio.on('typing')
+@objSocketIo.on('typing')
 def handle_typing(data):
     """
     Handle real-time typing indicators for enhanced user experience.
@@ -1669,7 +1778,7 @@ def handle_typing(data):
     
     print(f"👤 {current_user.username} {'started' if is_typing else 'stopped'} typing in {chat_type} chat")
 
-@socketio.on('heartbeat')
+@objSocketIo.on('heartbeat')
 def handle_heartbeat():
     """
     Handle connection monitoring heartbeat from clients.
@@ -1692,7 +1801,7 @@ def handle_heartbeat():
         emit('heartbeat_response', {'timestamp': datetime.now().isoformat()})
 
 # --- Flask-Admin setup ---
-admin = Admin(app, name='Chattrix Admin', template_mode='bootstrap4')
+objAdmin = Admin(objApp, name='Chattrix Admin', template_mode='bootstrap4')
 
 class AdminModelView(ModelView):
     def is_accessible(self):
@@ -1711,13 +1820,13 @@ class PushTestView(BaseView):
     def inaccessible_callback(self, name, **kwargs):
         return redirect(url_for('login'))
 
-admin.add_view(AdminModelView(User, db.session))
-admin.add_view(AdminModelView(Message, db.session))
-admin.add_view(AdminModelView(Conversation, db.session))
-admin.add_view(PushTestView(name='Push Test', endpoint='push_test_admin'))
+objAdmin.add_view(AdminModelView(User, objDb.session))
+objAdmin.add_view(AdminModelView(Message, objDb.session))
+objAdmin.add_view(AdminModelView(Conversation, objDb.session))
+objAdmin.add_view(PushTestView(name='Push Test', endpoint='push_test_admin'))
 
 # --- Create admin user ---
-def create_admin_user():
+def createAdminUser():
     """
     Create default admin user if it doesn't exist in the database.
     
@@ -1738,103 +1847,103 @@ def create_admin_user():
         - Shows password in development mode for convenience
         - Uses secure password hashing for production safety
     """
-    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
-    admin_email = os.environ.get('ADMIN_EMAIL', 'admin@chattrix.com')
+    strAdminUsername = os.environ.get('ADMIN_USERNAME', 'admin')
+    strAdminPassword = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    strAdminEmail = os.environ.get('ADMIN_EMAIL', 'admin@chattrix.com')
     
-    if not User.query.filter_by(username=admin_username).first():
-        admin_user = User(
-            display_name="Administrator",
-            username=admin_username,
-            password=generate_password_hash(admin_password, method='pbkdf2:sha256'),
-            is_admin=True
+    if not User.query.filter_by(strUsername=strAdminUsername).first():
+        objAdminUser = User(
+            strDisplayName="Administrator",
+            strUsername=strAdminUsername,
+            strPasswordHash=generate_password_hash(strAdminPassword, method='pbkdf2:sha256'),
+            bIsAdmin=True
         )
-        db.session.add(admin_user)
-        db.session.commit()
-        print(f"Admin user created: username='{admin_username}'")
-        if config_name == 'development':
-            print(f"Password: '{admin_password}'")
+        objDb.session.add(objAdminUser)
+        objDb.session.commit()
+        print(f"Admin user created: username='{strAdminUsername}'")
+        if strConfigName == 'development':
+            print(f"Password: '{strAdminPassword}'")
 
 # Initialize database and admin user
-with app.app_context():
-    db.create_all()
-    migrate_database()
-    create_admin_user()
+with objApp.app_context():
+    objDb.create_all()
+    migrateDatabaseSchema()
+    createAdminUser()
 
 # Replace the last section of your app.py (from "if __name__ == '__main__':")
 if __name__ == '__main__':
     print('🚀 Starting Chattrix application...')
     
     # Get configuration
-    config_name = os.environ.get('FLASK_ENV', 'development')
-    print(f'📋 Using configuration: {config_name}')
+    strConfigName = os.environ.get('FLASK_ENV', 'development')
+    print(f'📋 Using configuration: {strConfigName}')
     
     try:
         # Initialize database and admin user
-        with app.app_context():
+        with objApp.app_context():
             print('🔧 Initializing database...')
-            db.create_all()
-            migrate_database()
-            create_admin_user()
+            objDb.create_all()
+            migrateDatabaseSchema()
+            createAdminUser()
             print('✅ Database initialization complete')
         
         # Configuration for local development
-        port = int(os.environ.get('PORT', 5000))
+        nPort = int(os.environ.get('PORT', 5000))
         
         # Use 127.0.0.1 for local development, 0.0.0.0 for production
-        if config_name == 'development':
-            host = '127.0.0.1'
-            debug = True
+        if strConfigName == 'development':
+            strHost = '127.0.0.1'
+            bDebug = True
         else:
-            host = '0.0.0.0'
-            debug = False
+            strHost = '0.0.0.0'
+            bDebug = False
         
         # Check for HTTPS mode
-        ssl_context = None
-        protocol = 'http'
+        objSslContext = None
+        strProtocol = 'http'
         
         # Look for SSL certificates
-        cert_file = 'certs/cert.pem'
-        key_file = 'certs/key.pem'
+        strCertFile = 'certs/cert.pem'
+        strKeyFile = 'certs/key.pem'
         
-        if os.path.exists(cert_file) and os.path.exists(key_file):
+        if os.path.exists(strCertFile) and os.path.exists(strKeyFile):
             try:
-                ssl_context = (cert_file, key_file)
-                protocol = 'https'
+                objSslContext = (strCertFile, strKeyFile)
+                strProtocol = 'https'
                 print(f'🔒 SSL certificates found - enabling HTTPS')
             except Exception as e:
                 print(f'⚠️ SSL certificate error: {e}')
                 print(f'📍 Falling back to HTTP')
-                ssl_context = None
+                objSslContext = None
         
-        print(f'🌐 Starting server at {protocol}://{host}:{port}')
-        print(f'🔧 Debug mode: {debug}')
-        print(f'📍 Visit: {protocol}://127.0.0.1:{port}')
+        print(f'🌐 Starting server at {strProtocol}://{strHost}:{nPort}')
+        print(f'🔧 Debug mode: {bDebug}')
+        print(f'📍 Visit: {strProtocol}://127.0.0.1:{nPort}')
         
-        if protocol == 'https':
+        if strProtocol == 'https':
             print(f'🔒 HTTPS enabled - push notifications should work!')
         else:
             print(f'⚠️ HTTP mode - push notifications may require browser flags')
-            print(f'💡 For Chrome: chrome --unsafely-treat-insecure-origin-as-secure=http://localhost:{port}')
+            print(f'💡 For Chrome: chrome --unsafely-treat-insecure-origin-as-secure=http://localhost:{nPort}')
             print(f'💡 For Firefox: Should work directly on localhost')
         
         # Start the SocketIO server with proper SSL context handling
-        if ssl_context:
+        if objSslContext:
             # For HTTPS with Flask-SocketIO + eventlet
-            socketio.run(app, 
-                        host=host, 
-                        port=port, 
-                        debug=debug,
-                        certfile=cert_file,
-                        keyfile=key_file,
+            objSocketIo.run(objApp, 
+                        host=strHost, 
+                        port=nPort, 
+                        debug=bDebug,
+                        certfile=strCertFile,
+                        keyfile=strKeyFile,
                         use_reloader=False,
                         log_output=True)
         else:
             # For HTTP
-            socketio.run(app, 
-                        host=host, 
-                        port=port, 
-                        debug=debug,
+            objSocketIo.run(objApp, 
+                        host=strHost, 
+                        port=nPort, 
+                        debug=bDebug,
                         use_reloader=False,
                         log_output=True)
         

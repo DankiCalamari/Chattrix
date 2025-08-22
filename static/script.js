@@ -1,5 +1,8 @@
-// Initialize Socket.IO with optimized settings for real-time performance
-const socket = io({
+/**
+ * Chattrix Real-Time Messaging Client
+ * Initializes Socket.IO with optimized settings for real-time performance
+ */
+const objSocket = io({
     transports: ['websocket', 'polling'],
     upgrade: true,
     rememberUpgrade: true,
@@ -11,398 +14,473 @@ const socket = io({
     maxReconnectionAttempts: 10
 });
 
-// Real-time state management
-let connectionStatus = 'connecting';
-let typingUsers = new Set();
-let typingTimer = null;
-let heartbeatInterval = null;
-let messageQueue = [];
-let lastHeartbeat = Date.now();
+/**
+ * Global State Management Variables
+ * Using Hungarian notation for type clarity
+ */
+let strConnectionStatus = 'connecting';           // Connection state indicator
+let setTypingUsers = new Set();                  // Active typing users collection
+let nTypingTimer = null;                         // Typing indicator timer reference
+let nHeartbeatInterval = null;                   // Heartbeat interval reference
+let arrMessageQueue = [];                        // Queued messages for offline handling
+let nLastHeartbeat = Date.now();                 // Timestamp of last heartbeat
 
-// Get current user ID from the page context
-let currentUserId = null;
-let isAdmin = false;
+/**
+ * User Context Variables
+ * Current user identification and permissions
+ */
+let nCurrentUserId = null;                       // Current authenticated user ID
+let bIsAdmin = false;                            // Admin privileges flag
 
-// File upload state
-let selectedFile = null;
-let selectedPrivateFile = null;
+/**
+ * File Upload State Variables
+ * File selection state for public and private uploads
+ */
+let objSelectedFile = null;                      // Selected file for public upload
+let objSelectedPrivateFile = null;               // Selected file for private upload
 
-// Show connection status immediately
+/**
+ * Initial Connection Status Display
+ * Shows connection status immediately when DOM loads
+ */
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize connection status indicator first
     updateConnectionStatus();
 });
 
-// Initialize when DOM is ready
+/**
+ * Main Application Initialization
+ * Initializes all components when DOM is fully loaded
+ */
 document.addEventListener('DOMContentLoaded', function() {
-    // Try to get currentUserId from different sources
-    const userIdElement = document.querySelector('[data-user-id]');
-    if (userIdElement) {
-        currentUserId = parseInt(userIdElement.getAttribute('data-user-id'));
+    // Extract current user ID from DOM data attributes or global variables
+    const elemUserIdContainer = document.querySelector('[data-user-id]');
+    if (elemUserIdContainer) {
+        nCurrentUserId = parseInt(elemUserIdContainer.getAttribute('data-user-id'));
     } else if (window.currentUserId) {
-        currentUserId = window.currentUserId;
+        nCurrentUserId = window.currentUserId;
     }
     
-    // Get admin status
+    // Extract admin status from global scope
     if (window.isAdmin) {
-        isAdmin = window.isAdmin;
+        bIsAdmin = window.isAdmin;
     }
     
-    console.log('Current user ID:', currentUserId);
-    console.log('Is admin:', isAdmin);
+    console.log('Current user ID:', nCurrentUserId);
+    console.log('Is admin:', bIsAdmin);
     
-    // Initialize public chat if on main chat page
+    // Initialize chat components based on current page context
     initializePublicChat();
-    
-    // Initialize private chat if on private chat page
     initializePrivateChat();
     
-    // Load messages on public chat page
-    if (document.getElementById('messages')) {
+    // Load messages for public chat interface
+    const elemMessages = document.getElementById('messages');
+    if (elemMessages) {
         loadPublicMessages();
-        if (isAdmin) {
+        if (bIsAdmin) {
             loadPinnedMessages();
         }
     }
     
-    // Set up dark mode toggle
+    // Initialize UI components
     setupDarkMode();
-    
-    // Initialize connection status indicator
     updateConnectionStatus();
-    
-    // Initialize file upload functionality
     initializeFileUploads();
     
-    // Check if socket is already connected (for page refreshes)
+    // Handle post-load socket connection verification
     setTimeout(() => {
-        if (socket.connected && connectionStatus !== 'connected') {
+        if (objSocket.connected && strConnectionStatus !== 'connected') {
             console.log('🔄 Socket was already connected, updating status');
-            connectionStatus = 'connected';
+            strConnectionStatus = 'connected';
             updateConnectionStatus();
         }
-    }, 1000); // Check after 1 second
+    }, 1000);
 });
 
-// Initialize public chat functionality
+/**
+ * Initialize Public Chat Functionality
+ * Sets up event handlers for public message sending and typing indicators
+ */
 function initializePublicChat() {
-    const messageForm = document.getElementById('messageForm');
-    const messageInput = document.getElementById('msgInput');
+    const elemMessageForm = document.getElementById('messageForm');
+    const elemMessageInput = document.getElementById('msgInput');
     
-    if (messageForm && messageInput) {
-        messageForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+    if (elemMessageForm && elemMessageInput) {
+        // Handle form submission for sending messages
+        elemMessageForm.addEventListener('submit', function(event) {
+            event.preventDefault();
             
-            const message = messageInput.value.trim();
+            const strMessage = elemMessageInput.value.trim();
             
-            // Send text message
-            if (message) {
-                console.log('Sending public message:', message);
+            // Send text message if content exists
+            if (strMessage) {
+                console.log('Sending public message:', strMessage);
                 
-                socket.emit('send_message', {
-                    text: message
+                objSocket.emit('send_message', {
+                    text: strMessage
                 });
                 
-                messageInput.value = '';
+                elemMessageInput.value = '';
             }
             
-            // Stop typing indicator
+            // Clear typing indicator
             sendTypingIndicator(false, 'public');
         });
         
-        // Handle typing indicators
-        let typingTimeout;
-        messageInput.addEventListener('input', function() {
-            // Send typing started
+        // Handle typing indicators with debouncing
+        let nTypingTimeout;
+        elemMessageInput.addEventListener('input', function() {
+            // Signal typing started
             sendTypingIndicator(true, 'public');
             
-            // Clear previous timeout
-            clearTimeout(typingTimeout);
+            // Clear previous timeout to prevent multiple signals
+            clearTimeout(nTypingTimeout);
             
-            // Set timeout to stop typing after 2 seconds of inactivity
-            typingTimeout = setTimeout(() => {
+            // Auto-stop typing indicator after 2 seconds of inactivity
+            nTypingTimeout = setTimeout(() => {
                 sendTypingIndicator(false, 'public');
             }, 2000);
         });
         
-        // Stop typing when input loses focus
-        messageInput.addEventListener('blur', function() {
-            clearTimeout(typingTimeout);
+        // Clear typing indicator when input loses focus
+        elemMessageInput.addEventListener('blur', function() {
+            clearTimeout(nTypingTimeout);
             sendTypingIndicator(false, 'public');
         });
         
-        // Handle Enter key for public messages
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                messageForm.dispatchEvent(new Event('submit'));
+        // Handle Enter key submission for public messages
+        elemMessageInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                elemMessageForm.dispatchEvent(new Event('submit'));
             }
         });
     }
 }
 
-// Initialize private chat functionality  
+/**
+ * Initialize Private Chat Functionality
+ * Sets up event handlers for private message sending and file uploads
+ */
 function initializePrivateChat() {
-    const privateMessageForm = document.getElementById('privateMessageForm');
-    const privateMessageInput = document.getElementById('privateMsgInput');
+    const elemPrivateMessageForm = document.getElementById('privateMessageForm');
+    const elemPrivateMessageInput = document.getElementById('privateMsgInput');
     
-    if (privateMessageForm && privateMessageInput) {
-        privateMessageForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+    if (elemPrivateMessageForm && elemPrivateMessageInput) {
+        // Handle form submission for private messages
+        elemPrivateMessageForm.addEventListener('submit', function(event) {
+            event.preventDefault();
             
-            const message = privateMessageInput.value.trim();
-            const recipientId = document.getElementById('recipientId').value;
+            const strMessage = elemPrivateMessageInput.value.trim();
+            const strRecipientId = document.getElementById('recipientId').value;
             
-            // Check if there's a file selected
-            if (selectedPrivateFile) {
-                // Upload file
-                uploadFile(selectedPrivateFile, recipientId);
-            } else if (message && recipientId) {
+            // Handle file upload if file is selected
+            if (objSelectedPrivateFile) {
+                uploadFile(objSelectedPrivateFile, strRecipientId);
+            } else if (strMessage && strRecipientId) {
                 // Send text message
-                console.log('Sending private message:', { recipient_id: recipientId, message: message });
-                
-                socket.emit('private_message', {
-                    recipient_id: parseInt(recipientId),
-                    message: message
+                console.log('Sending private message:', { 
+                    recipient_id: strRecipientId, 
+                    message: strMessage 
                 });
                 
-                privateMessageInput.value = '';
+                objSocket.emit('private_message', {
+                    recipient_id: parseInt(strRecipientId),
+                    message: strMessage
+                });
+                
+                elemPrivateMessageInput.value = '';
             }
         });
         
-        // Handle Enter key for private messages
-        privateMessageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                privateMessageForm.dispatchEvent(new Event('submit'));
+        // Handle Enter key submission for private messages
+        elemPrivateMessageInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                elemPrivateMessageForm.dispatchEvent(new Event('submit'));
             }
         });
     }
 }
 
-// Socket event handlers
-socket.on('connect', function() {
+/**
+ * Socket Event Handlers
+ * Real-time communication event management
+ */
+
+/**
+ * Handle Socket Connection Event
+ * Establishes connection and initializes user presence
+ */
+objSocket.on('connect', function() {
     console.log('✅ Connected to server - Real-time mode active');
-    connectionStatus = 'connected';
+    strConnectionStatus = 'connected';
     
-    // Ensure DOM is ready before updating status
+    // Ensure DOM is ready before updating connection status
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', updateConnectionStatus);
     } else {
         updateConnectionStatus();
     }
     
-    // Join user's personal room for notifications
-    socket.emit('join_user_room');
+    // Join user's personal notification room
+    objSocket.emit('join_user_room');
     
-    // Set user location
-    if (window.location.pathname === '/') {
-        socket.emit('user_location', { location: 'public_chat' });
-    } else if (window.location.pathname.startsWith('/chat/')) {
-        socket.emit('user_location', { location: 'private_chat' });
+    // Set user location context for targeted notifications
+    const strCurrentPath = window.location.pathname;
+    if (strCurrentPath === '/') {
+        objSocket.emit('user_location', { location: 'public_chat' });
+    } else if (strCurrentPath.startsWith('/chat/')) {
+        objSocket.emit('user_location', { location: 'private_chat' });
     }
     
-    // Start heartbeat for connection monitoring
+    // Start heartbeat monitoring for connection health
     startHeartbeat();
     
-    // Process any queued messages
+    // Process any queued messages from offline state
     processMessageQueue();
 });
 
-socket.on('disconnect', function() {
+/**
+ * Handle Socket Disconnection Event
+ * Updates UI and stops heartbeat monitoring
+ */
+objSocket.on('disconnect', function() {
     console.log('❌ Disconnected from server');
-    connectionStatus = 'disconnected';
+    strConnectionStatus = 'disconnected';
     updateConnectionStatus();
     stopHeartbeat();
 });
 
-socket.on('reconnect', function() {
+/**
+ * Handle Socket Reconnection Event
+ * Re-establishes connection state and monitoring
+ */
+objSocket.on('reconnect', function() {
     console.log('🔄 Reconnected to server');
-    connectionStatus = 'connected';
+    strConnectionStatus = 'connected';
     updateConnectionStatus();
     startHeartbeat();
 });
 
-socket.on('connect_error', function(error) {
-    console.error('❌ Connection error:', error);
-    connectionStatus = 'error';
+/**
+ * Handle Socket Connection Error Event
+ * Displays error state in UI
+ */
+objSocket.on('connect_error', function(objError) {
+    console.error('❌ Connection error:', objError);
+    strConnectionStatus = 'error';
     updateConnectionStatus();
 });
 
-// Handle receiving public messages
-socket.on('receive_message', function(data) {
-    console.log('📩 Received public message:', data);
-    displayPublicMessage(data);
+/**
+ * Handle Incoming Public Messages
+ * Displays public chat messages with audio notification
+ */
+objSocket.on('receive_message', function(objData) {
+    console.log('📩 Received public message:', objData);
+    displayPublicMessage(objData);
     
-    // Play notification sound for real-time feedback
+    // Provide audio feedback for real-time interaction
     playNotificationSound();
 });
 
-// Handle receiving private messages
-socket.on('receive_private_message', function(data) {
-    console.log('📩 Received private message:', data);
-    displayPrivateMessage(data);
+/**
+ * Handle Incoming Private Messages
+ * Displays private chat messages with audio notification
+ */
+objSocket.on('receive_private_message', function(objData) {
+    console.log('📩 Received private message:', objData);
+    displayPrivateMessage(objData);
     playNotificationSound();
 });
 
-// Handle online users updates
-socket.on('online_users', function(users) {
-    updateOnlineUsers(users);
+/**
+ * Handle Online Users Updates
+ * Updates the online users list display
+ */
+objSocket.on('online_users', function(arrUsers) {
+    updateOnlineUsers(arrUsers);
 });
 
-// Handle typing indicators
-socket.on('user_typing', function(data) {
-    handleTypingIndicator(data);
+/**
+ * Handle Typing Indicators
+ * Shows/hides typing status for other users
+ */
+objSocket.on('user_typing', function(objData) {
+    handleTypingIndicator(objData);
 });
 
-// Handle heartbeat response
-socket.on('heartbeat_response', function(data) {
-    lastHeartbeat = Date.now();
+/**
+ * Handle Heartbeat Response
+ * Updates connection quality metrics
+ */
+objSocket.on('heartbeat_response', function(objData) {
+    nLastHeartbeat = Date.now();
     updateConnectionQuality();
 });
 
-// Handle notifications
-socket.on('notification', function(data) {
-    console.log('Received notification:', data);
-    showNotification(data);
+/**
+ * Handle Notification Events
+ * Displays browser notifications for messages and alerts
+ */
+objSocket.on('notification', function(objData) {
+    console.log('Received notification:', objData);
+    showNotification(objData);
 });
 
-// Handle browser notifications (fallback)
-socket.on('browser_notification', function(data) {
-    console.log('Received browser notification:', data);
-    showNotification(data);
+/**
+ * Handle Browser Notification Fallback
+ * Alternative notification method for compatibility
+ */
+objSocket.on('browser_notification', function(objData) {
+    console.log('Received browser notification:', objData);
+    showNotification(objData);
 });
 
-// Enhanced message display with real-time features (replacing old function)
-function displayPublicMessage(data) {
-    const messagesContainer = document.getElementById('messages');
-    if (!messagesContainer) return;
+/**
+ * Display Public Message Function
+ * Enhanced message display with real-time features and duplicate prevention
+ * @param {Object} objData - Message data object containing all message information
+ */
+function displayPublicMessage(objData) {
+    const elemMessagesContainer = document.getElementById('messages');
+    if (!elemMessagesContainer) return;
     
-    // Check if message already exists (avoid duplicates)
-    if (document.querySelector(`[data-message-id="${data.id}"]`)) {
+    // Prevent duplicate message display by checking existing message IDs
+    if (document.querySelector(`[data-message-id="${objData.id}"]`)) {
         return;
     }
     
-    const messageDiv = document.createElement('div');
-    messageDiv.setAttribute('data-message-id', data.id);
+    const elemMessageDiv = document.createElement('div');
+    elemMessageDiv.setAttribute('data-message-id', objData.id);
     
-    if (data.temp) {
-        messageDiv.setAttribute('data-temp-id', data.id);
-        messageDiv.classList.add('temp-message');
+    // Handle temporary messages (for optimistic UI updates)
+    if (objData.temp) {
+        elemMessageDiv.setAttribute('data-temp-id', objData.id);
+        elemMessageDiv.classList.add('temp-message');
     }
     
-    const isOwnMessage = data.sender_id == currentUserId;
-    messageDiv.className = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
+    const bIsOwnMessage = objData.sender_id == nCurrentUserId;
+    elemMessageDiv.className = `message ${bIsOwnMessage ? 'own-message' : 'other-message'}`;
     
-    // Handle profile picture with proper fallback
-    let avatarHtml = '';
+    // Handle profile picture with intelligent fallback system
+    let strAvatarHtml = '';
     
-    // Check if we have a valid profile picture
-    const hasValidProfilePic = data.profile_pic && 
-                              data.profile_pic !== 'default.jpg' && 
-                              data.profile_pic !== '/static/profile_pics/default.jpg' &&
-                              !data.profile_pic.includes('default.jpg');
+    // Validate profile picture availability and authenticity
+    const bHasValidProfilePic = objData.profile_pic && 
+                               objData.profile_pic !== 'default.jpg' && 
+                               objData.profile_pic !== '/static/profile_pics/default.jpg' &&
+                               !objData.profile_pic.includes('default.jpg');
     
-    if (hasValidProfilePic) {
-        // Handle both full URLs and just filenames
-        const profilePicUrl = data.profile_pic.startsWith('/static/') ? 
-                             data.profile_pic : 
-                             `/static/profile_pics/${data.profile_pic}`;
-        avatarHtml = `<img src="${profilePicUrl}" alt="Profile" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                      <div class="avatar-fallback" style="display: none;">${(data.display_name || data.username || '?')[0].toUpperCase()}</div>`;
+    if (bHasValidProfilePic) {
+        // Normalize profile picture URL format
+        const strProfilePicUrl = objData.profile_pic.startsWith('/static/') ? 
+                                objData.profile_pic : 
+                                `/static/profile_pics/${objData.profile_pic}`;
+        strAvatarHtml = `<img src="${strProfilePicUrl}" alt="Profile" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                         <div class="avatar-fallback" style="display: none;">${(objData.display_name || objData.username || '?')[0].toUpperCase()}</div>`;
     } else {
-        // Use first letter fallback
-        const initial = (data.display_name || data.username || '?')[0].toUpperCase();
-        avatarHtml = `<div class="avatar-fallback">${initial}</div>`;
+        // Generate initial-based avatar fallback
+        const strInitial = (objData.display_name || objData.username || '?')[0].toUpperCase();
+        strAvatarHtml = `<div class="avatar-fallback">${strInitial}</div>`;
     }
     
-    // Pin button for admins
-    let pinButton = '';
-    if (isAdmin && !data.is_private && !data.system) {
-        pinButton = `<button class="pin-btn" onclick="pinMessage(${data.id})" title="Pin message">📌</button>`;
+    // Generate admin pin button for message management
+    let strPinButton = '';
+    if (bIsAdmin && !objData.is_private && !objData.system) {
+        strPinButton = `<button class="pin-btn" onclick="pinMessage(${objData.id})" title="Pin message">📌</button>`;
     }
     
-    messageDiv.innerHTML = `
+    // Construct complete message HTML structure
+    elemMessageDiv.innerHTML = `
         <div class="message-avatar">
-            ${avatarHtml}
+            ${strAvatarHtml}
         </div>
         <div class="message-content">
             <div class="message-header">
-                <span class="message-sender">${data.display_name || data.username}</span>
-                <span class="message-time">${new Date(data.timestamp).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
-                ${pinButton}
+                <span class="message-sender">${objData.display_name || objData.username}</span>
+                <span class="message-time">${new Date(objData.timestamp).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+                ${strPinButton}
             </div>
-            <div class="message-text">${processFileMessage(data.text)}</div>
+            <div class="message-text">${processFileMessage(objData.text)}</div>
         </div>
     `;
     
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Append message to container and auto-scroll to latest
+    elemMessagesContainer.appendChild(elemMessageDiv);
+    elemMessagesContainer.scrollTop = elemMessagesContainer.scrollHeight;
     
-    // Add smooth animation for real-time feel
-    messageDiv.style.opacity = '0';
-    messageDiv.style.transform = 'translateY(10px)';
+    // Add smooth entrance animation for enhanced user experience
+    elemMessageDiv.style.opacity = '0';
+    elemMessageDiv.style.transform = 'translateY(10px)';
     requestAnimationFrame(() => {
-        messageDiv.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-        messageDiv.style.opacity = '1';
-        messageDiv.style.transform = 'translateY(0)';
+        elemMessageDiv.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        elemMessageDiv.style.opacity = '1';
+        elemMessageDiv.style.transform = 'translateY(0)';
     });
     
-    // Add glow effect for new messages
-    if (!data.temp) {
-        messageDiv.classList.add('new-message');
+    // Add visual highlight for new messages
+    if (!objData.temp) {
+        elemMessageDiv.classList.add('new-message');
         setTimeout(() => {
-            messageDiv.classList.remove('new-message');
+            elemMessageDiv.classList.remove('new-message');
         }, 500);
     }
 }
 
-function displayPrivateMessage(data) {
-    const messagesContainer = document.getElementById('privateMessages');
-    if (!messagesContainer) return;
+/**
+ * Display Private Message Function
+ * Renders private chat messages with avatar fallback system
+ * @param {Object} objData - Private message data object
+ */
+function displayPrivateMessage(objData) {
+    const elemMessagesContainer = document.getElementById('privateMessages');
+    if (!elemMessagesContainer) return;
     
-    const messageDiv = document.createElement('div');
-    const isOwnMessage = data.sender_id == currentUserId;
+    const elemMessageDiv = document.createElement('div');
+    const bIsOwnMessage = objData.sender_id == nCurrentUserId;
     
-    messageDiv.className = `message ${isOwnMessage ? 'own-message' : 'other-message'}`;
+    elemMessageDiv.className = `message ${bIsOwnMessage ? 'own-message' : 'other-message'}`;
     
-    // Handle profile picture with proper fallback
-    let avatarHtml = '';
+    // Handle profile picture with intelligent fallback system
+    let strAvatarHtml = '';
     
-    // Check if we have a valid profile picture
-    const hasValidProfilePic = data.profile_pic && 
-                              data.profile_pic !== 'default.jpg' && 
-                              data.profile_pic !== '/static/profile_pics/default.jpg' &&
-                              !data.profile_pic.includes('default.jpg');
+    // Validate profile picture availability and authenticity
+    const bHasValidProfilePic = objData.profile_pic && 
+                               objData.profile_pic !== 'default.jpg' && 
+                               objData.profile_pic !== '/static/profile_pics/default.jpg' &&
+                               !objData.profile_pic.includes('default.jpg');
     
-    if (hasValidProfilePic) {
-        // Handle both full URLs and just filenames
-        const profilePicUrl = data.profile_pic.startsWith('/static/') ? 
-                             data.profile_pic : 
-                             `/static/profile_pics/${data.profile_pic}`;
-        avatarHtml = `<img src="${profilePicUrl}" alt="Profile" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                      <div class="avatar-fallback" style="display: none;">${(data.display_name || data.username || '?')[0].toUpperCase()}</div>`;
+    if (bHasValidProfilePic) {
+        // Normalize profile picture URL format
+        const strProfilePicUrl = objData.profile_pic.startsWith('/static/') ? 
+                                objData.profile_pic : 
+                                `/static/profile_pics/${objData.profile_pic}`;
+        strAvatarHtml = `<img src="${strProfilePicUrl}" alt="Profile" class="avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                         <div class="avatar-fallback" style="display: none;">${(objData.display_name || objData.username || '?')[0].toUpperCase()}</div>`;
     } else {
-        // Use first letter fallback
-        const initial = (data.display_name || data.username || '?')[0].toUpperCase();
-        avatarHtml = `<div class="avatar-fallback">${initial}</div>`;
+        // Generate initial-based avatar fallback
+        const strInitial = (objData.display_name || objData.username || '?')[0].toUpperCase();
+        strAvatarHtml = `<div class="avatar-fallback">${strInitial}</div>`;
     }
     
-    messageDiv.innerHTML = `
+    // Construct private message HTML structure
+    elemMessageDiv.innerHTML = `
         <div class="message-avatar">
-            ${avatarHtml}
+            ${strAvatarHtml}
         </div>
         <div class="message-content">
             <div class="message-header">
-                <span class="message-sender">${data.display_name || data.username}</span>
-                <span class="message-time">${new Date(data.timestamp || Date.now()).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+                <span class="message-sender">${objData.display_name || objData.username}</span>
+                <span class="message-time">${new Date(objData.timestamp || Date.now()).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
             </div>
-            <div class="message-text">${processFileMessage(data.text || data.message)}</div>
+            <div class="message-text">${processFileMessage(objData.text || objData.message)}</div>
         </div>
     `;
     
-    messagesContainer.appendChild(messageDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Append to container and auto-scroll to latest message
+    elemMessagesContainer.appendChild(elemMessageDiv);
+    elemMessagesContainer.scrollTop = elemMessagesContainer.scrollHeight;
 }
 
 // Load public messages
@@ -481,60 +559,73 @@ function updateOnlineUsers(users) {
     });
 }
 
-// Show notification
-function showNotification(data) {
-    console.log('📢 Showing notification:', data);
+/**
+ * Show Notification Function
+ * Displays browser notifications with fallback to toast notifications
+ * @param {Object} objData - Notification data containing title, message, and action URLs
+ */
+function showNotification(objData) {
+    console.log('📢 Showing notification:', objData);
     
-    // Try browser notification first (works even without push subscription)
+    // Attempt browser notification first (requires permission and works without push subscription)
     if ('Notification' in window && Notification.permission === 'granted') {
         try {
-            const notification = new Notification(data.title || 'Chattrix', {
-                body: data.message || data.body || 'New message',
+            const objNotification = new Notification(objData.title || 'Chattrix', {
+                body: objData.message || objData.body || 'New message',
                 icon: '/static/profile_pics/default.jpg',
                 badge: '/static/profile_pics/default.jpg',
                 tag: 'chattrix-notification',
                 requireInteraction: false
             });
             
-            notification.onclick = function() {
+            // Handle notification click event for navigation
+            objNotification.onclick = function() {
                 window.focus();
-                if (data.chat_url) {
-                    window.location.href = data.chat_url;
+                if (objData.chat_url) {
+                    window.location.href = objData.chat_url;
                 }
-                notification.close();
+                objNotification.close();
             };
             
-            // Auto close after 5 seconds
-            setTimeout(() => notification.close(), 5000);
+            // Auto-close notification after 5 seconds to prevent clutter
+            setTimeout(() => objNotification.close(), 5000);
             
             console.log('✅ Browser notification shown successfully');
             return;
-        } catch (error) {
-            console.error('❌ Browser notification error:', error);
+        } catch (objError) {
+            console.error('❌ Browser notification error:', objError);
         }
     }
     
-    // Fallback: show toast notification
-    showToast(`${data.title || 'New Message'}: ${data.message || data.body}`, 'info');
+    // Fallback: display toast notification for users without browser notification permission
+    showToast(`${objData.title || 'New Message'}: ${objData.message || objData.body}`, 'info');
     
-    // Play notification sound
+    // Play audio notification for all notification types
     playNotificationSound();
 }
 
-// Pin message function
-function pinMessage(messageId) {
-    if (!isAdmin) return;
+/**
+ * Pin Message Function
+ * Allows admin users to pin important messages
+ * @param {number} nMessageId - ID of message to pin
+ */
+function pinMessage(nMessageId) {
+    if (!bIsAdmin) return;
     
-    socket.emit('pin_message', { message_id: messageId });
-    console.log('Pinning message:', messageId);
+    objSocket.emit('pin_message', { message_id: nMessageId });
+    console.log('Pinning message:', nMessageId);
 }
 
-// Unpin message function
-function unpinMessage(messageId) {
-    if (!isAdmin) return;
+/**
+ * Unpin Message Function  
+ * Allows admin users to unpin previously pinned messages
+ * @param {number} nMessageId - ID of message to unpin
+ */
+function unpinMessage(nMessageId) {
+    if (!bIsAdmin) return;
     
-    socket.emit('unpin_message', { message_id: messageId });
-    console.log('Unpinning message:', messageId);
+    objSocket.emit('unpin_message', { message_id: nMessageId });
+    console.log('Unpinning message:', nMessageId);
 }
 
 // Setup dark mode toggle
@@ -581,161 +672,216 @@ socket.on('error', (error) => console.error('Socket error:', error));
 // =========================
 
 // Send typing indicator
-function sendTypingIndicator(isTyping, chatType, recipientId = null) {
-    if (connectionStatus === 'connected') {
-        socket.emit('typing', {
-            is_typing: isTyping,
-            chat_type: chatType,
-            recipient_id: recipientId
+/**
+ * Send Typing Indicator
+ * Notifies other users when current user is typing
+ * @param {boolean} bIsTyping - Whether user is currently typing
+ * @param {string} strChatType - Type of chat (public/private)
+ * @param {number} nRecipientId - Recipient ID for private chats
+ */
+function sendTypingIndicator(bIsTyping, strChatType, nRecipientId = null) {
+    if (strConnectionStatus === 'connected') {
+        objSocket.emit('typing', {
+            is_typing: bIsTyping,
+            chat_type: strChatType,
+            recipient_id: nRecipientId
         });
     }
 }
 
-// Handle typing indicators
-function handleTypingIndicator(data) {
-    if (data.user_id === currentUserId) return; // Don't show our own typing
+/**
+ * Handle Typing Indicators
+ * Processes incoming typing status from other users
+ * @param {Object} objData - Typing indicator data
+ */
+function handleTypingIndicator(objData) {
+    if (objData.user_id === nCurrentUserId) return; // Don't show our own typing
     
-    const typingContainer = document.getElementById('typingIndicator');
-    if (!typingContainer) return;
+    const elemTypingContainer = document.getElementById('typingIndicator');
+    if (!elemTypingContainer) return;
     
-    if (data.is_typing) {
-        typingUsers.add(data.display_name || data.username);
+    const strUserName = objData.display_name || objData.username;
+    if (objData.is_typing) {
+        setTypingUsers.add(strUserName);
     } else {
-        typingUsers.delete(data.display_name || data.username);
+        setTypingUsers.delete(strUserName);
     }
     
     updateTypingDisplay();
 }
 
-// Update typing display
+/**
+ * Update Typing Display
+ * Updates the visual display of users currently typing
+ */
 function updateTypingDisplay() {
-    const typingContainer = document.getElementById('typingIndicator');
-    if (!typingContainer) return;
+    const elemTypingContainer = document.getElementById('typingIndicator');
+    if (!elemTypingContainer) return;
     
-    if (typingUsers.size === 0) {
-        typingContainer.innerHTML = '';
-        typingContainer.style.display = 'none';
+    if (setTypingUsers.size === 0) {
+        elemTypingContainer.innerHTML = '';
+        elemTypingContainer.style.display = 'none';
     } else {
-        const userList = Array.from(typingUsers);
-        let text = '';
+        const arrUserList = Array.from(setTypingUsers);
+        let strText = '';
         
-        if (userList.length === 1) {
-            text = `${userList[0]} is typing...`;
-        } else if (userList.length === 2) {
-            text = `${userList[0]} and ${userList[1]} are typing...`;
+        // Format typing indicator text based on number of typing users
+        if (arrUserList.length === 1) {
+            strText = `${arrUserList[0]} is typing...`;
+        } else if (arrUserList.length === 2) {
+            strText = `${arrUserList[0]} and ${arrUserList[1]} are typing...`;
         } else {
-            text = `${userList[0]} and ${userList.length - 1} others are typing...`;
+            strText = `${arrUserList[0]} and ${arrUserList.length - 1} others are typing...`;
         }
         
-        typingContainer.innerHTML = `<div class="typing-indicator">${text}</div>`;
-        typingContainer.style.display = 'block';
+        elemTypingContainer.innerHTML = `<div class="typing-indicator">${strText}</div>`;
+        elemTypingContainer.style.display = 'block';
     }
 }
 
-// Connection status management
+/**
+ * Connection Status Management Functions
+ * Handles real-time connection status display and user feedback
+ */
+
+/**
+ * Update Connection Status Display
+ * Updates the visual connection status indicator based on current state
+ */
 function updateConnectionStatus() {
-    console.log('🔄 Updating connection status:', connectionStatus);
+    console.log('🔄 Updating connection status:', strConnectionStatus);
     
-    const statusIndicator = document.getElementById('connectionStatus');
-    if (!statusIndicator) {
-        // Create status indicator if it doesn't exist
-        const indicator = document.createElement('div');
-        indicator.id = 'connectionStatus';
-        indicator.className = 'connection-status';
-        document.body.appendChild(indicator);
+    let elemStatusIndicator = document.getElementById('connectionStatus');
+    if (!elemStatusIndicator) {
+        // Create connection status indicator if it doesn't exist
+        const elemIndicator = document.createElement('div');
+        elemIndicator.id = 'connectionStatus';
+        elemIndicator.className = 'connection-status';
+        document.body.appendChild(elemIndicator);
         console.log('✅ Created connection status indicator');
+        elemStatusIndicator = elemIndicator;
     }
     
-    const indicator = document.getElementById('connectionStatus');
-    indicator.className = `connection-status ${connectionStatus}`;
+    elemStatusIndicator.className = `connection-status ${strConnectionStatus}`;
     
-    switch (connectionStatus) {
+    // Set status display based on current connection state
+    switch (strConnectionStatus) {
         case 'connected':
-            indicator.innerHTML = '🟢 Real-time';
-            indicator.title = 'Connected - Real-time messaging active';
+            elemStatusIndicator.innerHTML = '🟢 Real-time';
+            elemStatusIndicator.title = 'Connected - Real-time messaging active';
             break;
         case 'connecting':
-            indicator.innerHTML = '🟡 Connecting...';
-            indicator.title = 'Connecting to server...';
+            elemStatusIndicator.innerHTML = '🟡 Connecting...';
+            elemStatusIndicator.title = 'Connecting to server...';
             break;
         case 'disconnected':
-            indicator.innerHTML = '🔴 Offline';
-            indicator.title = 'Disconnected - Messages will be sent when reconnected';
+            elemStatusIndicator.innerHTML = '🔴 Offline';
+            elemStatusIndicator.title = 'Disconnected - Messages will be sent when reconnected';
             break;
         case 'error':
-            indicator.innerHTML = '⚠️ Error';
-            indicator.title = 'Connection error - Attempting to reconnect...';
+            elemStatusIndicator.innerHTML = '⚠️ Error';
+            elemStatusIndicator.title = 'Connection error - Attempting to reconnect...';
             break;
     }
     
-    console.log('📊 Connection status updated to:', indicator.innerHTML);
+    console.log('📊 Connection status updated to:', elemStatusIndicator.innerHTML);
 }
 
-// Heartbeat for connection monitoring
+/**
+ * Start Heartbeat Monitoring
+ * Initiates periodic connection health checks
+ */
 function startHeartbeat() {
-    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    if (nHeartbeatInterval) clearInterval(nHeartbeatInterval);
     
-    heartbeatInterval = setInterval(() => {
-        if (connectionStatus === 'connected') {
-            socket.emit('heartbeat');
+    nHeartbeatInterval = setInterval(() => {
+        if (strConnectionStatus === 'connected') {
+            objSocket.emit('heartbeat');
         }
-    }, 10000); // Every 10 seconds
+    }, 10000); // Send heartbeat every 10 seconds
 }
 
+/**
+ * Stop Heartbeat Monitoring
+ * Cleans up heartbeat interval when connection is lost
+ */
 function stopHeartbeat() {
-    if (heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-        heartbeatInterval = null;
+    if (nHeartbeatInterval) {
+        clearInterval(nHeartbeatInterval);
+        nHeartbeatInterval = null;
     }
 }
 
+/**
+ * Update Connection Quality Display
+ * Shows connection latency-based quality indicator
+ */
 function updateConnectionQuality() {
-    const latency = Date.now() - lastHeartbeat;
-    const qualityIndicator = document.getElementById('connectionQuality');
+    const nLatency = Date.now() - nLastHeartbeat;
+    const elemQualityIndicator = document.getElementById('connectionQuality');
     
-    if (qualityIndicator) {
-        if (latency < 100) {
-            qualityIndicator.innerHTML = '🔵 Excellent';
-            qualityIndicator.className = 'quality excellent';
-        } else if (latency < 300) {
-            qualityIndicator.innerHTML = '🟢 Good';
-            qualityIndicator.className = 'quality good';
-        } else if (latency < 1000) {
-            qualityIndicator.innerHTML = '🟡 Fair';
-            qualityIndicator.className = 'quality fair';
+    if (elemQualityIndicator) {
+        // Categorize connection quality based on latency
+        if (nLatency < 100) {
+            elemQualityIndicator.innerHTML = '🔵 Excellent';
+            elemQualityIndicator.className = 'quality excellent';
+        } else if (nLatency < 300) {
+            elemQualityIndicator.innerHTML = '🟢 Good';
+            elemQualityIndicator.className = 'quality good';
+        } else if (nLatency < 1000) {
+            elemQualityIndicator.innerHTML = '🟡 Fair';
+            elemQualityIndicator.className = 'quality fair';
         } else {
-            qualityIndicator.innerHTML = '🔴 Poor';
-            qualityIndicator.className = 'quality poor';
+            elemQualityIndicator.innerHTML = '🔴 Poor';
+            elemQualityIndicator.className = 'quality poor';
         }
     }
 }
 
-// Message queue management
-function addToMessageQueue(message) {
-    messageQueue.push(message);
+/**
+ * Message Queue Management Functions
+ * Handles offline message queuing and processing
+ */
+
+/**
+ * Add Message to Queue
+ * Stores messages when offline for later transmission
+ * @param {Object} objMessage - Message object to queue
+ */
+function addToMessageQueue(objMessage) {
+    arrMessageQueue.push(objMessage);
 }
 
-function removeFromMessageQueue(messageId) {
-    const tempElement = document.querySelector(`[data-temp-id="${messageId}"]`);
-    if (tempElement) {
-        tempElement.removeAttribute('data-temp-id');
-        tempElement.classList.remove('temp-message');
+/**
+ * Remove Message from Queue
+ * Removes processed messages and updates UI elements
+ * @param {string} strMessageId - ID of message to remove from queue
+ */
+function removeFromMessageQueue(strMessageId) {
+    const elemTempMessage = document.querySelector(`[data-temp-id="${strMessageId}"]`);
+    if (elemTempMessage) {
+        elemTempMessage.removeAttribute('data-temp-id');
+        elemTempMessage.classList.remove('temp-message');
     }
-    messageQueue = messageQueue.filter(msg => msg.id !== messageId);
+    arrMessageQueue = arrMessageQueue.filter(objMsg => objMsg.id !== strMessageId);
 }
 
+/**
+ * Process Message Queue
+ * Sends all queued messages when connection is restored
+ */
 function processMessageQueue() {
     // Process any messages that were queued while disconnected
-    messageQueue.forEach(msg => {
-        if (msg.temp) {
-            // Resend temporary messages
-            if (msg.is_private) {
-                socket.emit('send_private_message', {
-                    text: msg.text,
-                    recipient_id: msg.recipient_id
+    arrMessageQueue.forEach(objMsg => {
+        if (objMsg.temp) {
+            // Resend temporary messages based on type
+            if (objMsg.is_private) {
+                objSocket.emit('send_private_message', {
+                    text: objMsg.text,
+                    recipient_id: objMsg.recipient_id
                 });
             } else {
-                socket.emit('send_message', {
+                objSocket.emit('send_message', {
                     text: msg.text
                 });
             }
@@ -743,29 +889,36 @@ function processMessageQueue() {
     });
 }
 
-// Play notification sound
+/**
+ * Play Notification Sound
+ * Generates a subtle audio notification using Web Audio API
+ */
 function playNotificationSound() {
-    // Create a subtle notification sound
-    const audioContext = window.AudioContext || window.webkitAudioContext;
-    if (audioContext) {
+    // Create a subtle notification sound using Web Audio API
+    const objAudioContext = window.AudioContext || window.webkitAudioContext;
+    if (objAudioContext) {
         try {
-            const context = new audioContext();
-            const oscillator = context.createOscillator();
-            const gainNode = context.createGain();
+            const objContext = new objAudioContext();
+            const objOscillator = objContext.createOscillator();
+            const objGainNode = objContext.createGain();
             
-            oscillator.connect(gainNode);
-            gainNode.connect(context.destination);
+            // Connect audio nodes
+            objOscillator.connect(objGainNode);
+            objGainNode.connect(objContext.destination);
             
-            oscillator.frequency.setValueAtTime(800, context.currentTime);
-            oscillator.frequency.exponentialRampToValueAtTime(400, context.currentTime + 0.1);
+            // Configure frequency sweep (high to low pitch)
+            objOscillator.frequency.setValueAtTime(800, objContext.currentTime);
+            objOscillator.frequency.exponentialRampToValueAtTime(400, objContext.currentTime + 0.1);
             
-            gainNode.gain.setValueAtTime(0.1, context.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.1);
+            // Configure volume envelope (fade out)
+            objGainNode.gain.setValueAtTime(0.1, objContext.currentTime);
+            objGainNode.gain.exponentialRampToValueAtTime(0.01, objContext.currentTime + 0.1);
             
-            oscillator.start(context.currentTime);
-            oscillator.stop(context.currentTime + 0.1);
-        } catch (e) {
-            // Fallback: no sound
+            // Play the sound for 100ms
+            objOscillator.start(objContext.currentTime);
+            objOscillator.stop(objContext.currentTime + 0.1);
+        } catch (objError) {
+            // Fallback: silently fail if audio is not available
             console.log('Audio notification not available');
         }
     }
